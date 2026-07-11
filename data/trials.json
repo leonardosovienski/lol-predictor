@@ -1,0 +1,58 @@
+[
+  {
+    "name": "h1-lol-elo-mapa-prequential",
+    "registered_at": "2026-07-11T06:15:34Z",
+    "params": {
+      "model": "elo-mapa",
+      "k": 32,
+      "seed": "bandas-gpr-2026",
+      "default_seed_elo": 1400,
+      "burnin_days": 90,
+      "min_team_games": 10,
+      "baseline": "elo-semente-congelado (banda regional)",
+      "leagues": [
+        "LCK",
+        "LPL",
+        "LEC",
+        "LCS",
+        "LTA N",
+        "LTA S",
+        "LTA",
+        "MSI",
+        "WLDs",
+        "FST",
+        "EWC"
+      ],
+      "period": "2025-01..2026-07"
+    },
+    "sharpe": null,
+    "notes": "H1-LOL: Elo por mapa (prequential, prever-antes-de-atualizar) prevê o vencedor melhor que a banda regional congelada. COMPROVADA = Brier menor E Diebold-Mariano p<0.05 sobre log-loss. Métrica probabilística (sem odds na Fase 1a). | RESULTADO 2026-07-11: COMPROVADA — n=3053, Brier 0.4434 vs banda 0.4657, acerto 64.5%, DM p<1e-4. Calibracao levemente subconfiante no favorito (0.26 prev vs 0.34 real na faixa 0.2-0.3). Sem odds: metrica probabilistica (sharpe nao se aplica na Fase 1a).",
+    "test_period": [
+      "2025-01-12",
+      "2026-07-10"
+    ]
+  },
+  {
+    "name": "h2-lol-kills-normal-por-liga",
+    "registered_at": "2026-07-11T06:15:34Z",
+    "params": {
+      "model": "normal-kills",
+      "media": "time expanding (últimos 40)",
+      "sigma": "por liga expanding",
+      "linhas": [
+        24.5,
+        27.5,
+        30.5
+      ],
+      "baseline": "média/sigma da liga pura",
+      "min_league_games": 30,
+      "period": "2025-01..2026-07"
+    },
+    "sharpe": null,
+    "notes": "H2-LOL: Normal de abates com médias POR TIME bate a média da liga pura. COMPROVADA = Brier menor com DM p<0.05 em >=2 das 3 linhas. | RESULTADO 2026-07-11: REFUTADA — 0/3 linhas; a media POR TIME e' PIOR que a media da liga nas 3 linhas (Brier maior, DM p<0.001 na direcao errada). Media por time adiciona ruido: o serving de kills deve usar so a media da liga ate hipotese nova (N+1).",
+    "test_period": [
+      "2025-01-12",
+      "2026-07-10"
+    ]
+  }
+]

@@ -1,9 +1,12 @@
 # lol-predictor
 
-> **Status: Fase 0 — esqueleto funcional (2026-07-10).** Modelo Elo + totais
-> de abates rodando, CI verde, vendor no predictor_core v1.1.0. **Backtest e
-> operação real ainda NÃO existem** — nenhuma previsão daqui tem edge
-> demonstrado. Não é ferramenta de investimento.
+> **Status: Fase 1 CONCLUÍDA (2026-07-11).** Backtest prequential sobre
+> 3.877 mapas do Oracle's Elixir: **H1 (Elo vencedor) COMPROVADA** (Brier
+> 0,4434 vs banda 0,4657, acerto 64,5%, DM p<1e-4) e **H2 (abates por time)
+> REFUTADA** — a média da liga vence; o serving de kills usa só ela. Elo
+> vivido de 85 times materializado em `data/ratings.json`. **Sem odds, sem
+> apostas** — métrica é probabilística (Fase 1b exigiria fonte de odds).
+> Relatório: `docs/RELATORIO_FASE1.md`. Não é ferramenta de investimento.
 
 Laboratório de previsão de **partidas de League of Legends** (vencedor da
 série e total de abates), sétimo consumidor do ecossistema `predictor_core`.

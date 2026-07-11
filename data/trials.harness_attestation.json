@@ -1,0 +1,6 @@
+{
+  "passed_at": "2026-07-11T06:15:34+00:00",
+  "evaluate": "evaluate",
+  "edge_verdict": "COMPROVADA",
+  "note": "criterio Brier<baseline + DM p<0.05; edge=+100 Elo oculto; ruido=jitter 5pp; 1500 jogos/braço; seed 13"
+}

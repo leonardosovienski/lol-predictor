@@ -5,6 +5,12 @@
 /data/bankroll.jsonl
 /data/ratings.json
 /data/team_stats.json
+/data/team_stats_pesquisa.json
+/data/calibration.json
+/data/walkforward_summary.json
+/data/raw/
+/data/lol.db*
+# trials.json + atestado são VERSIONADOS (denominador do DSR imortal)
 *.db
 *.log
 events.jsonl

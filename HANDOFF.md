@@ -1,5 +1,26 @@
 # HANDOFF.md — lol-predictor
 
+> ## 🟢🔴 FASE 1 CONCLUÍDA — H1 COMPROVADA, H2 REFUTADA (2026-07-11)
+>
+> Fonte: **Oracle's Elixir** (CSVs 2025+2026 do Google Drive — o S3 antigo
+> está 404; IDs da pasta descobertos via navegador). **3.877 mapas**
+> ingeridos (LCK/LPL/LEC/LCS/LTA/MSI/WLDs/FST/EWC, 2025-01→2026-07).
+> Backtest prequential (prever→atualizar, K=32, burn-in 90d, n medido 3.053)
+> com governança completa (harness do critério passou; hipóteses
+> pré-registradas antes de rodar).
+>
+> **H1-LOL (vencedor) COMPROVADA**: Brier 0,4434 vs banda regional 0,4657,
+> acerto 64,5%, DM p<1e-4. Calibração levemente subconfiante no favorito —
+> vetor de melhoria (N+1). **H2-LOL (abates por time) REFUTADA na direção
+> oposta**: média por time PERDE da média da liga nas 3 linhas (DM p<0,001)
+> — total de kills é fenômeno de LIGA/patch; o serving usa só a média da
+> liga (team_stats vai para `team_stats_pesquisa.json`, não consumido).
+>
+> Serving materializado: `ratings.json` (Elo vivido de 85 times) +
+> `calibration.json` (média/σ de kills por liga, 11 ligas). Relatório:
+> `docs/RELATORIO_FASE1.md`. Fase 1b (odds ao vivo em sombra) depende de
+> fonte de odds corrente — não existe ainda.
+
 > ## 🎮 CRIAÇÃO (2026-07-10)
 >
 > **Projeto criado. Modelo Elo base implementado. Backtest e operação real

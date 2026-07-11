@@ -21,3 +21,22 @@ teams_file: data/teams_lol.json
 ratings_file: data/ratings.json
 # médias por time (kills_per_game) materializadas na Fase 1; ausente → média
 team_stats_file: data/team_stats.json
+
+database: data/lol.db
+
+# Fase 1 — Oracle's Elixir (CSVs locais em data/raw/; códigos de liga do OE,
+# verificados no dado em 2026-07-11). LTA N/S = Américas pós-2025; FST =
+# First Stand; EWC = Esports World Cup; WLDs = Worlds.
+oracle:
+  leagues: ["LCK", "LPL", "LEC", "LCS", "LTA", "LTA N", "LTA S",
+            "MSI", "WLDs", "FST", "EWC"]
+
+# Fase 1 — backtest prequential
+backtest:
+  burnin_days: 90           # ratings convergem da semente antes de medir
+  min_team_games: 10        # métrica só conta jogo onde ambos têm histórico
+  default_seed_elo: 1400    # time fora do Top 30 semeado abaixo do último
+  kills_lines: [24.5, 27.5, 30.5]
+  min_league_games_kills: 30   # média/sigma por liga só valem com amostra
+  bootstrap_iterations: 1000
+  bootstrap_seed: 13
