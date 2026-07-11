@@ -1,0 +1,54 @@
+"""Serving (src/predict.py) — 3 confrontos, log isolado, PredictionPoint."""
+import json
+from datetime import datetime, timezone
+
+import pytest
+
+from src import predict
+
+PARES = [("T1", "Gen.G"), ("Bilibili Gaming", "G2 Esports"),
+         ("Hanwha Life Esports", "JD Gaming")]
+
+
+@pytest.fixture(autouse=True)
+def _isolado(tmp_path, monkeypatch):
+    monkeypatch.setenv("PREDICTIONS_LOG_PATH", str(tmp_path / "pred.jsonl"))
+    monkeypatch.setenv("PREDICTOR_EVENTS_PATH", str(tmp_path / "events.jsonl"))
+    yield
+
+
+@pytest.mark.parametrize("a,b", PARES)
+def test_saida_consistente(a, b):
+    r = predict.run(a, b, fmt="bo3")
+    assert abs(r["prob_team_a"] + r["prob_team_b"] - 1.0) < 1e-6
+    assert 15 <= r["total_abates_projetado"] <= 40
+    assert 2.0 <= r["mapas_esperados"] <= 3.0
+
+
+def test_carimbo_prediction_point_por_formato():
+    now = datetime(2026, 7, 10, 22, 0, tzinfo=timezone.utc)
+    r3 = predict.run("T1", "Gen.G", fmt="bo3", now=now)
+    assert r3["matures_at"] == "2026-07-11T00:30:00+00:00"    # +2h30
+    r5 = predict.run("T1", "Gen.G", fmt="bo5", now=now)
+    assert r5["matures_at"] == "2026-07-11T02:00:00+00:00"    # +4h
+
+
+def test_cli_json_valido(capsys):
+    rc = predict.main(["T1", "Gen.G", "--format", "bo3", "--json"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert {"prob_team_a", "prob_team_b", "total_abates_projetado",
+            "prob_underdog", "kills"} <= set(out)
+
+
+def test_cli_market_kills_com_linha(capsys):
+    rc = predict.main(["T1", "Gen.G", "--market", "kills",
+                       "--kills-line", "26.5", "--json"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["market"] == "kills"
+    assert out["kills"]["line"] == 26.5
+
+
+def test_cli_time_desconhecido_sai_2():
+    assert predict.main(["Timeburgo", "T1", "--json"]) == 2

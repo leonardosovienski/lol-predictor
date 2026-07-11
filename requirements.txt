@@ -1,0 +1,6 @@
+pandas
+numpy
+scipy
+pydantic
+httpx
+pyyaml

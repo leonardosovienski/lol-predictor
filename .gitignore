@@ -1,0 +1,24 @@
+# Dados de runtime — regras ANCORADAS (licao do wc/cripto: 'data/'
+# nao-ancorado engolia o pacote vendor/predictor_core/data/)
+/data/predictions.jsonl
+/data/bets.jsonl
+/data/bankroll.jsonl
+/data/ratings.json
+/data/team_stats.json
+*.db
+*.log
+events.jsonl
+.env
+
+# Bytecode / cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Ambientes
+.venv/
+env/
+
+# SO
+.DS_Store
+Thumbs.db

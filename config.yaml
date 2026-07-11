@@ -1,0 +1,23 @@
+# lol-predictor — Fase 0 (esqueleto). Elo inicial em data/teams_lol.json
+# (bandas por liga ancoradas no GPR regional oficial; ordem intra-liga é
+# estimativa declarada). Parâmetros de abates são PLACEHOLDERS a calibrar
+# na Fase 1 (Riot API / Oracle's Elixir).
+game: "League of Legends"
+default_format: "bo3"
+default_kills_line: 24.5
+k_factor_base: 32          # BO1; BO3=40, BO5=48 (model.K_FACTORS)
+bankroll: 1000
+stake_unit: 50
+
+model:
+  # total médio de abates POR MAPA (dois times somados) — placeholder da era;
+  # a Fase 1 mede por liga/patch (LCK historicamente mais baixo que LPL)
+  league_avg_total_kills: 28.0
+  # desvio-padrão do total de abates por mapa — placeholder declarado
+  kills_std: 8.0
+
+teams_file: data/teams_lol.json
+# ratings correntes persistidos por update_ratings (ausente → initial_elo)
+ratings_file: data/ratings.json
+# médias por time (kills_per_game) materializadas na Fase 1; ausente → média
+team_stats_file: data/team_stats.json
