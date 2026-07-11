@@ -54,5 +54,26 @@
       "2025-01-12",
       "2026-07-10"
     ]
+  },
+  {
+    "name": "h3-lol-elo-platt-prequential",
+    "registered_at": "2026-07-11T18:33:06Z",
+    "params": {
+      "model": "elo-mapa+platt",
+      "nivel": "mapa",
+      "platt": {
+        "min_fit": 300,
+        "refit_every": 200,
+        "janela": "expanding forward-only"
+      },
+      "base": "h1-lol-elo-mapa-prequential (mesmo Elo, mesma passada)",
+      "period": "2025-01..2026-07"
+    },
+    "sharpe": null,
+    "notes": "N+1: Platt sobre a prob de MAPA do Elo (motivado pela subconfiança no favorito do relatório da Fase 1 — espera-se a>1). COMPROVADA = Brier menor + DM p<0.05. | RESULTADO 2026-07-11: REFUTADA — Brier 0.4434 -> 0.4416, DM p=0.35528, n=3053.",
+    "test_period": [
+      "2025-01-12",
+      "2026-07-10"
+    ]
   }
 ]

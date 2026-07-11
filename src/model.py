@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 from statistics import NormalDist
 
+from .calibration import PlattCalibrator
 from .config import ROOT, load_config, load_team_stats, load_teams, resolve_team
 
 K_FACTORS = {"bo1": 32, "bo3": 40, "bo5": 48}
@@ -59,6 +60,10 @@ class EloModel:
             ROOT / cfg.get("ratings_file", "data/ratings.json"))
         if self.path.exists():
             self.ratings.update(json.loads(self.path.read_text(encoding="utf-8")))
+        # Platt no nível do MAPA (tentativa N+1): materializado por
+        # scripts/backtest_calibracao.py; ausente → identidade
+        self.platt = PlattCalibrator.load(
+            ROOT / "data" / "calibration_platt.json")
 
     def _elo(self, name: str) -> tuple[str, float]:
         official = resolve_team(name)["name"]
@@ -72,7 +77,10 @@ class EloModel:
         b, elo_b = self._elo(team_b)
         if a == b:
             raise ValueError("um time não joga contra si mesmo")
-        p_map = win_probability(elo_a, elo_b)
+        p_map_raw = win_probability(elo_a, elo_b)
+        # Platt calibra a prob de MAPA (a unidade medida no prequential);
+        # a combinatória de série herda a prob calibrada
+        p_map = self.platt.apply(p_map_raw) if self.platt else p_map_raw
         dist = series_probs(p_map, fmt)
         prob_a = sum(pr for placar, pr in dist.items()
                      if int(placar.split("-")[0]) > int(placar.split("-")[1]))
@@ -81,6 +89,7 @@ class EloModel:
         return {"team_a": a, "team_b": b, "format": fmt,
                 "elo_a": round(elo_a, 1), "elo_b": round(elo_b, 1),
                 "p_map_a": round(p_map, 4),
+                "p_map_a_raw": round(p_map_raw, 4),
                 "prob_team_a": round(prob_a, 4),
                 "prob_team_b": round(1.0 - prob_a, 4),
                 # zebra explícita: o lado de menor probabilidade (aposta de valor
@@ -89,7 +98,7 @@ class EloModel:
                 "underdog": b if prob_a >= 0.5 else a,
                 "mapas_esperados": round(mapas, 2),
                 "score_probs": {s: round(pr, 4) for s, pr in dist.items()},
-                "model": "elo-fase0"}
+                "model": "elo-platt-fase1" if self.platt else "elo-fase0"}
 
     def predict_kills_total(self, team_a: str, team_b: str,
                             line: float | None = None) -> dict:
