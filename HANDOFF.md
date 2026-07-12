@@ -1,5 +1,21 @@
 # HANDOFF.md — lol-predictor
 
+> ## 🔮 PREVISÃO EM ABERTO — Final do MSI 2026 (BLG x HLE), registrada em 2026-07-12
+>
+> Série ainda não terminada: placar parcial **BLG 0 x 1 HLE** (Bo5). Usando
+> o prior estático (mesma semente de `data/teams_lol.json`, sem update
+> online intra-torneio — ver refutação N+2 abaixo) com Elo pré-final BLG
+> 1615 x HLE 1650: P(HLE vence um mapa) = 55,0%. Condicionando no placar
+> atual (HLE precisa +2, BLG precisa +3):
+>
+> - **P(HLE fecha a série e é campeã) = 75,9%**
+> - P(BLG vira a série e é campeã) = 24,1%
+>
+> Previsão do modelo: **Hanwha Life Esports campeã do MSI 2026**. Registrar
+> o placar final aqui quando sair, pra fechar o loop acerto/erro dessa
+> previsão pontual (não é backtest formal, é chute do serving em cima de
+> uma série real em andamento).
+>
 > ## 🔴 N+2 REFUTADA — update online K=48 intra-torneio piora vs. prior estático (2026-07-12)
 >
 > Backtest ad-hoc (fora do harness formal) contra o **MSI 2026 real** (20
