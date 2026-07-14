@@ -1,5 +1,27 @@
 # HANDOFF.md — lol-predictor
 
+> ## 📋 Previsões EWC 2026-07-15 (com o fix do resolve_team)
+>
+> Reteste pós-fix do resolve_team (ver entrada abaixo), 8 jogos de abertura
+> do Esports World Cup, `EloModel.predict_match` formato bo3 direto (não
+> via CLI `src.predict`), Elo real de `data/ratings.json`:
+>
+> | Confronto | Elo A / B | P(A) / P(B) | Favorito |
+> |---|---|---|---|
+> | Team Secret x Sentinels | 1438 / 1443 | 49,0% / 51,0% | Sentinels (quase moeda) |
+> | Gen.G x Karmine Corp | 1762 / 1586 | 82,5% / 17,5% | Gen.G |
+> | Bilibili Gaming x Movistar KOI | 1858 / 1558 | 93,8% / 6,2% | Bilibili Gaming |
+> | GAM Esports x T1 | 1434 / 1767 | 4,5% / 95,5% | T1 |
+> | G2 Esports x FURIA | 1708 / 1347 | 96,5% / 3,5% | G2 Esports |
+> | JD Gaming x LYON | 1599 / 1663 | 36,5% / 63,5% | LYON |
+>
+> **Deixados de fora, por decisão do Leo**: Dplus KIA x AG.AL e Hanwha
+> Life Esports x MIBR.LOS — AG.AL e MIBR.LOS não têm nenhum registro nem
+> em `teams_lol.json` nem em `ratings.json` (o Oracle's Elixir da Fase 1
+> nunca os ingeriu). `resolve_team` corretamente recusa esses dois com
+> "time desconhecido" em vez de inventar um seed silencioso — comportamento
+> mantido de propósito, não é bug.
+>
 > ## 🟢 FIX — resolve_team não enxergava times extras de ratings.json (2026-07-14)
 >
 > Achado testando previsões do Esports World Cup (15/07): `src.predict`
