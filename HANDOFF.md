@@ -15,12 +15,33 @@
 > | G2 Esports x FURIA | 1708 / 1347 | 96,5% / 3,5% | G2 Esports |
 > | JD Gaming x LYON | 1599 / 1663 | 36,5% / 63,5% | LYON |
 >
-> **Deixados de fora, por decisão do Leo**: Dplus KIA x AG.AL e Hanwha
-> Life Esports x MIBR.LOS — AG.AL e MIBR.LOS não têm nenhum registro nem
-> em `teams_lol.json` nem em `ratings.json` (o Oracle's Elixir da Fase 1
-> nunca os ingeriu). `resolve_team` corretamente recusa esses dois com
-> "time desconhecido" em vez de inventar um seed silencioso — comportamento
-> mantido de propósito, não é bug.
+> **Fora do serving oficial** (Leo pediu depois um número mesmo assim, sob
+> demanda, calculado à mão fora do `resolve_team` com `win_probability`/
+> `series_probs` direto e `default_seed_elo=1400` do config.yaml — NÃO é
+> Elo aprendido, é placeholder genérico, tratar como quase sem informação):
+>
+> | Confronto | Elo A | Elo B (seed) | P(A) / P(B) | Favorito |
+> |---|---|---|---|---|
+> | Dplus KIA x AG.AL | 1540,0 | 1400,0* | 77,3% / 22,7% | Dplus KIA |
+> | Hanwha Life Esports x MIBR.LOS | 1787,3 | 1400,0* | 97,3% / 2,7% | Hanwha Life Esports |
+>
+> AG.AL e MIBR.LOS não têm nenhum registro nem em `teams_lol.json` nem em
+> `ratings.json` (o Oracle's Elixir da Fase 1 nunca os ingeriu).
+> `resolve_team` corretamente recusa esses dois com "time desconhecido" em
+> vez de inventar um seed silencioso — comportamento mantido de propósito,
+> não é bug; os números acima só existem porque foram pedidos explicitamente
+> fora do caminho oficial.
+>
+> **Dado sujo achado no processo**: `data/ratings.json` tem `"Dplus KIA"`
+> (1540,0) e `"Dplus Kia"` (1560,8) como duas entradas separadas — mesma
+> equipe, capitalização diferente, não deduplicada na ingestão da Fase 1.
+> Não corrigido ainda; vale investigar `scripts/atualiza_semanal.py`/pipeline
+> de ingest do Oracle's Elixir antes de usar esse time com frequência,
+> porque a previsão muda dependendo de qual grafia é passada.
+>
+> Formato usado nas duas tabelas: BO3 (`default_format` do config.yaml) —
+> não confirmado se a fase de grupos do EWC é BO1 de fato; isso só muda a
+> combinatória de série, não a probabilidade por mapa.
 >
 > ## 🟢 FIX — resolve_team não enxergava times extras de ratings.json (2026-07-14)
 >
