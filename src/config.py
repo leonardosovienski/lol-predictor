@@ -31,6 +31,18 @@ def load_teams() -> list[dict]:
 
 
 @lru_cache(maxsize=1)
+def load_rating_names() -> list[str]:
+    """Nomes extras de times presentes em ratings.json (Fase 1 ingeriu mais
+    times do que os 30 de teams_lol.json) — só para resolve_team encontrar
+    o time; o Elo em si continua vindo de EloModel.ratings."""
+    cfg = load_config()
+    path = ROOT / cfg.get("ratings_file", "data/ratings.json")
+    if not path.exists():
+        return []
+    return list(json.loads(path.read_text(encoding="utf-8")).keys())
+
+
+@lru_cache(maxsize=1)
 def load_team_stats() -> dict:
     """Médias por time ({nome: {kills_per_game}}), materializadas na Fase 1.
     Ausente → dict vazio → média da liga (model.py)."""
@@ -44,12 +56,18 @@ def load_team_stats() -> dict:
 def clear_caches() -> None:
     load_config.cache_clear()
     load_teams.cache_clear()
+    load_rating_names.cache_clear()
     load_team_stats.cache_clear()
 
 
 def resolve_team(name: str) -> dict:
-    """Nome exato ou substring única → registro do time. ValueError com
-    sugestões quando ambíguo/desconhecido (contrato de erro da plataforma)."""
+    """Nome exato ou substring única → registro do time. Primeiro tenta os
+    30 times Tier 1 (teams_lol.json, com região/initial_elo); se não achar,
+    cai para os nomes extras vividos em ratings.json (Fase 1 ingeriu mais
+    times do Oracle's Elixir do que o Top 30 semeado) — aí devolve só
+    {"name": ...}, o Elo real é lido depois em EloModel.ratings. ValueError
+    com sugestões quando ambíguo/desconhecido (contrato de erro da
+    plataforma)."""
     teams = load_teams()
     low = name.strip().lower()
     for t in teams:
@@ -58,6 +76,15 @@ def resolve_team(name: str) -> dict:
     hits = [t for t in teams if low in t["name"].lower()]
     if len(hits) == 1:
         return hits[0]
-    sugestao = [t["name"] for t in hits]
+
+    rating_names = load_rating_names()
+    for n in rating_names:
+        if n.lower() == low:
+            return {"name": n}
+    rhits = [n for n in rating_names if low in n.lower()]
+    if len(rhits) == 1:
+        return {"name": rhits[0]}
+
+    sugestao = [t["name"] for t in hits] + rhits
     raise ValueError(f"time desconhecido: {name!r}"
                      + (f" — você quis dizer {sugestao}?" if sugestao else ""))

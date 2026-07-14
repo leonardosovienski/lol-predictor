@@ -1,5 +1,25 @@
 # HANDOFF.md — lol-predictor
 
+> ## 🟢 FIX — resolve_team não enxergava times extras de ratings.json (2026-07-14)
+>
+> Achado testando previsões do Esports World Cup (15/07): `src.predict`
+> falhava com "time desconhecido" para FURIA, Sentinels, Team Secret, GAM
+> Esports e LYON — apesar desses times terem Elo REAL vivido em
+> `data/ratings.json` (a Fase 1 ingeriu mais times do Oracle's Elixir do
+> que o Top 30 semeado em `teams_lol.json`). Causa: `resolve_team()`
+> (`src/config.py`) só buscava nos 30 times fixos do teams_lol.json,
+> nunca olhava as chaves extras de `ratings.json`.
+>
+> **Fix**: `resolve_team` agora cai para `load_rating_names()` (nomes de
+> `ratings.json`) quando não acha no Top 30 — exact match e depois
+> substring única, mesmo contrato de erro de antes. Times só encontrados
+> em `ratings.json` retornam `{"name": ...}` (sem `region`/`initial_elo`,
+> que só existem no teams_lol.json); `EloModel` já lia o Elo real desses
+> times corretamente, o bloqueio era só na resolução do nome. Suíte
+> (31 testes) e CI seguem verdes; comportamento dos 30 times Tier 1 não
+> mudou (mesmos testes de `resolve_team("t1")["region"]` etc. continuam
+> passando).
+
 > ## 🔮 PREVISÃO EM ABERTO — Final do MSI 2026 (BLG x HLE), registrada em 2026-07-12
 >
 > Série ainda não terminada: placar parcial **BLG 0 x 1 HLE** (Bo5). Usando
