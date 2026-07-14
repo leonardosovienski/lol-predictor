@@ -1,5 +1,27 @@
 # HANDOFF.md — lol-predictor
 
+> ## 🟢 FIX — duplicata "Dplus KIA"/"Dplus Kia" em ratings.json (2026-07-15)
+>
+> Causa raiz confirmada nos CSVs brutos (`data/raw/2025_oe.csv`,
+> `2026_oe.csv`): o **Oracle's Elixir grafa o time como "Dplus Kia"**
+> (minúsculo no "Kia"), enquanto `data/teams_lol.json` semeou o nome como
+> **"Dplus KIA"** (maiúsculo). O `scripts/backtest_walkforward.py`
+> inicializa o dicionário de Elo com as chaves do teams_lol.json e depois
+> atualiza usando o nome exato que vem do OE — como as grafias não batem,
+> ele criou uma chave NOVA ("Dplus Kia") em vez de atualizar a existente.
+> Resultado: "Dplus KIA" ficou congelada em 1540,0 (idêntica ao
+> `initial_elo`, nunca recebeu um update real) enquanto "Dplus Kia"
+> acumulou o Elo vivido de ~1.560 partidas/linhas do OE (1560,8).
+>
+> **Fix**: renomeada a entrada em `data/teams_lol.json` de "Dplus KIA" →
+> "Dplus Kia" (grafia canônica do OE); removida a chave morta "Dplus KIA"
+> de `data/ratings.json`, mantendo só "Dplus Kia": 1560,8 (o Elo real).
+> Agora toda resolução (exata ou substring) converge pro rating aprendido.
+> Suíte (31 testes) e CI seguem verdes. Vale conferir se outros times têm
+> o mesmo tipo de mismatch de grafia entre `teams_lol.json` e o OE antes
+> de confiar cegamente nos 30 times semeados — este caso só foi achado
+> porque alguém pediu previsão pro time manualmente.
+>
 > ## 📋 Previsões EWC 2026-07-15 (com o fix do resolve_team)
 >
 > Reteste pós-fix do resolve_team (ver entrada abaixo), 8 jogos de abertura
@@ -40,8 +62,16 @@
 > porque a previsão muda dependendo de qual grafia é passada.
 >
 > Formato usado nas duas tabelas: BO3 (`default_format` do config.yaml) —
-> não confirmado se a fase de grupos do EWC é BO1 de fato; isso só muda a
-> combinatória de série, não a probabilidade por mapa.
+> Leo confirmou depois o formato real do EWC 2026: **Fase de Grupos =
+> MD1**, **Playoffs/eliminação = MD3**, **Grande Final = MD5**. O serving
+> hoje não modela isso — `default_format` é um valor único fixo pro
+> torneio inteiro, não varia por etapa. Refazer as previsões da fase de
+> grupos acima com `--format bo1` deveria mudar a probabilidade de série
+> (não a de mapa) pra mais perto do zebra, já que BO1 reduz a vantagem do
+> favorito. Pendente: nenhum mecanismo hoje passa a etapa do torneio pro
+> `predict` — teria que ser um argumento manual por chamada (`--format
+> bo1` na fase de grupos, `bo3` nos playoffs, `bo5` só na final), não dá
+> pra automatizar sem saber em que fase cada confronto está.
 >
 > ## 🟢 FIX — resolve_team não enxergava times extras de ratings.json (2026-07-14)
 >

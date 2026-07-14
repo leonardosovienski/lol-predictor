@@ -10,7 +10,7 @@
     {"name": "Top Esports", "region": "LPL", "initial_elo": 1575},
     {"name": "KT Rolster", "region": "LCK", "initial_elo": 1560},
     {"name": "Anyone's Legend", "region": "LPL", "initial_elo": 1555},
-    {"name": "Dplus KIA", "region": "LCK", "initial_elo": 1540},
+    {"name": "Dplus Kia", "region": "LCK", "initial_elo": 1540},
     {"name": "Weibo Gaming", "region": "LPL", "initial_elo": 1530},
     {"name": "Invictus Gaming", "region": "LPL", "initial_elo": 1515},
     {"name": "DRX", "region": "LCK", "initial_elo": 1505},
