@@ -1,5 +1,63 @@
 # HANDOFF.md — lol-predictor
 
+> ## 📌 EWC 2026 — replay completo da fase de grupos e agenda restante (2026-07-16)
+>
+> **Método do replay.** Foram identificadas as 20 séries da fase de grupos
+> (15–16/07) e os respectivos formatos públicos. Para cada confronto com dois
+> ratings canônicos disponíveis, foi rodado o Elo H1 no snapshot congelado de
+> `data/ratings.json` — SHA-256
+> `d45a06c250b24fb69a758bd5362c6a803b8829b949f4b1823b5910cd528f262c`,
+> mtime 2026-07-14T14:43:50Z — sem update intra-EWC, sem Platt, odds,
+> kills, patch, draft, lado, roster ou ajuste regional manual. Só depois a
+> saída foi comparada aos resultados públicos. É um **replay retrospectivo
+> read-only**, não uma evidência de protocolo forward temporal.
+>
+> **Todos os resultados auditados:** Grupo A — G2 1–0 FURIA, AG.AL 1–0
+> Dplus, Dplus 2–0 FURIA, AG.AL 1–0 G2, Dplus 2–0 G2. Grupo B — Sentinels
+> 1–0 Secret Whales/Team Secret, Gen.G 1–0 Karmine Corp, Karmine Corp 2–1
+> Secret Whales/Team Secret, Gen.G 1–0 Sentinels, Karmine Corp 2–0
+> Sentinels. Grupo C — T1 1–0 GAM, BLG 1–0 Movistar KOI, GAM 2–1 Movistar
+> KOI, BLG 1–0 T1, T1 2–0 GAM. Grupo D — JD Gaming 1–0 LYON, HLE 1–0
+> MIBR.LØS, MIBR.LØS 2–0 LYON, HLE 1–0 JD Gaming, JD Gaming 2–0 MIBR.LØS.
+>
+> | Grupo | Jogos válidos | Acertos | Erros |
+> |---|---:|---:|---:|
+> | A | 5 | 3 | AG.AL 1–0 G2; Dplus 2–0 G2 |
+> | B | 5 | 5 | — |
+> | C | 5 | 4 | GAM 2–1 Movistar KOI |
+> | D | 2 | 1 | JD Gaming 1–0 LYON |
+> | **Total** | **17** | **13 (76,5%)** | **4** |
+>
+> As probabilidades dos favoritos nos 17 confrontos válidos implicavam 12,80
+> acertos esperados (75,3%). Realizado: 13. Brier binário de séries: 0,1710
+> (0,3419 na convenção multiclasse usada pelo projeto). A boa aderência desta
+> rodada não deve ser transformada em edge financeiro nem em validação forward.
+>
+> **Bloqueios explícitos (VOID, não acerto/erro):** HLE 1–0 MIBR.LØS,
+> MIBR.LØS 2–0 LYON e MIBR.LØS 0–2 JD Gaming. O alias de branding
+> `MIBR.LØS → LØS` está documentado, mas `LØS` não existe no snapshot de
+> ratings canônico. Não foi aplicado seed 1400 ou qualquer ajuste manual. O
+> refresh deve resolver a identidade e materializar rating antes de servir
+> outra previsão desse time.
+>
+> **Agenda restante da EWC (ainda aberta):**
+>
+> | Data | Fase/formato | Confronto | Situação |
+> |---|---|---|---|
+> | 17/07 | Quartas, MD3 | Hanwha Life Esports × T1 | previsão aberta: HLE 54,3% |
+> | 17/07 | Quartas, MD3 | AG.AL / Anyone's Legend × Karmine Corp | previsão aberta: KC 51,6% |
+> | 17/07 | Quartas, MD3 | Gen.G × JD Gaming | previsão aberta: Gen.G 80,8% |
+> | 17/07 | Quartas, MD3 | Bilibili Gaming × Dplus Kia | previsão aberta: BLG 93,7% |
+> | 18/07 | Semifinal 1 | vencedor de QF1 × vencedor de QF2 | pendente de participantes; não prever ainda |
+> | 18/07 | Semifinal 2 | vencedor de QF3 × vencedor de QF4 | pendente de participantes; não prever ainda |
+> | 19/07 | Disputa de 3º | perdedor de SF1 × perdedor de SF2 | pendente de participantes; não prever ainda |
+> | 19/07 | Final | vencedor de SF1 × vencedor de SF2 | pendente de participantes; não prever ainda |
+>
+> Horários exatos dos playoffs ainda não foram materializados no fixture local;
+> registrar em UTC antes da emissão de cada PredictionPoint. Após cada série,
+> fechar resultado, Brier, acerto, hashes e commit sem atualizar Elo dentro do
+> bracket curto.
+
 > ## 🔮 PREVISÕES EM ABERTO — Quartas do EWC 2026 em MD3 (registradas 2026-07-16, jogos 17/07)
 >
 > Rodadas via `scripts/predict_ewc_opening.py --fixture
