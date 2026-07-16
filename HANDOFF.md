@@ -58,6 +58,25 @@
 > fechar resultado, Brier, acerto, hashes e commit sem atualizar Elo dentro do
 > bracket curto.
 
+> ## 🧪 Replays Tier 1 congelados pré-evento (2026-07-16)
+>
+> Novo runner read-only: `scripts/replay_tournament.py`. Ele reconstrói o Elo
+> com todos os mapas estritamente anteriores ao início da janela e o congela
+> durante o torneio; logo, não há lookahead nem reação intra-bracket. A unidade
+> é o **mapa**, porque o banco do Oracle's Elixir não oferece um identificador
+> de série confiável para todos os eventos. Artefato detalhado por mapa:
+> `data/reports/tier1_replay_2026-07-16.json` (hash do banco:
+> `b0839df999a59a2fe611e106f69a9899b5c458c5faba758d961be89728332c2b`).
+>
+> | Evento | Janela | Mapas | Histórico pré-evento | Acerto | Brier (multiclasse) | Log-loss | P média do vencedor real |
+> |---|---|---:|---:|---:|---:|---:|---:|
+> | MSI 2026 | 28/06–10/07 | 60 | 3.817 | 73,3% | 0,3782 | 0,5558 | 61,0% |
+> | Worlds 2025 | 25/09–09/11 | 96 | 2.213 | 66,7% | 0,4477 | 0,6364 | 55,0% |
+>
+> Ambos são amostras de torneio pequenas, úteis como diagnóstico e não como
+> substituto do backtest prequential amplo (n=3.053). Não foram usados Platt,
+> kills, odds, patch, draft, lado, roster, ajustes regionais manuais ou shadow.
+
 > ## 🔮 PREVISÕES EM ABERTO — Quartas do EWC 2026 em MD3 (registradas 2026-07-16, jogos 17/07)
 >
 > Rodadas via `scripts/predict_ewc_opening.py --fixture
