@@ -1,5 +1,77 @@
 # HANDOFF.md — lol-predictor
 
+> ## 🔮 PREVISÕES EM ABERTO — Quartas do EWC 2026 em MD3 (registradas 2026-07-16, jogos 17/07)
+>
+> Rodadas via `scripts/predict_ewc_opening.py --fixture
+> data/fixtures/ewc_quarterfinals_2026.json` (runner read-only, não toca o
+> ledger), formato **bo3** (correto pra fase de playoffs do EWC), Elo real
+> de `data/ratings.json` (sha256 d45a06c2…, mtime 2026-07-14):
+>
+> | Confronto | Elo A / B | P(A) / P(B) | Favorito |
+> |---|---|---|---|
+> | Hanwha Life x T1 | 1787 / 1767 | 54,3% / 45,7% | HLE (quase moeda) |
+> | AG.AL x Karmine Corp | 1579 / 1586 | 48,4% / 51,6% | KC (quase moeda) |
+> | Gen.G x JD Gaming | 1762 / 1599 | 80,8% / 19,2% | Gen.G |
+> | Bilibili Gaming x Dplus Kia | 1858 / 1561 | 93,7% / 6,3% | BLG |
+>
+> **Achado no processo**: AG.AL é o branding EWC de **"Anyone's Legend"**,
+> que TEM Elo real vivido em ratings.json (1578,8, 269 jogos, LPL,
+> ACCEPTABLE) — o alias já estava mapeado em
+> `data/fixtures/ewc_opening_2026.json`. A previsão "fora do serving" de
+> 15/07 (Dplus 77,3% x AG.AL com seed 1400) foi feita sem saber disso;
+> com o Elo real, AG.AL era na verdade ~2 pontos ACIMA do Dplus — o erro
+> daquela previsão foi de resolução de identidade, não do modelo. Fica a
+> lição: checar aliases de branding de torneio antes de aceitar seed.
+> Registrar os placares reais aqui quando as quartas terminarem.
+
+> ## ✅ RESULTADOS — EWC abertura + final do MSI, loop fechado (2026-07-16)
+>
+> Resultados reais colhidos da web (Liquipedia/imprensa) em 16/07 para
+> fechar o loop acerto/erro das previsões registradas em 14-15/07.
+> Todos os jogos de abertura do EWC foram **MD1** (as previsões foram
+> geradas em bo3 — pra grading de vencedor o favorito é o mesmo; a prob.
+> comparável em MD1 é a de MAPA, não a de série).
+>
+> **Final do MSI 2026 (12/07, Daejeon)**: **HLE 3x2 BLG — HLE campeã** ✅.
+> Do parcial 0x1 registrado: BLG venceu mapas 2-3, HLE fechou 4-5. O
+> modelo dava P(HLE campeã | 0x1) = 75,9% — acerto da previsão pontual.
+>
+> **EWC 2026 — jogos de abertura (15/07), serving oficial (6 jogos)**:
+>
+> | Confronto | Previsto (série / mapa) | Resultado | Acerto |
+> |---|---|---|---|
+> | Gen.G x Karmine Corp | Gen.G 82,5% / 73,4% | Gen.G 1-0 | ✅ |
+> | Sentinels x Team Secret | Sentinels 51,0% / 50,7% | Sentinels 1-0 | ✅ (moeda) |
+> | Bilibili Gaming x Movistar KOI | BLG 93,8% / 84,9% | BLG 1-0 | ✅ |
+> | T1 x GAM Esports | T1 95,5% / 87,2% | T1 1-0 | ✅ |
+> | G2 Esports x FURIA | G2 96,5% / 88,9% | G2 1-0 | ✅ |
+> | LYON x JD Gaming | LYON 63,5% / 59,1% | **JDG 1-0** | ❌ |
+>
+> **5/6 no vencedor (83%)**. O erro foi justamente o jogo de menor
+> confiança envolvendo LYON — ponto cego já conhecido da N+2 (LYON sem
+> histórico ingerido, Elo pouco confiável).
+>
+> **Fora do serving (seeds 1400, previsões sob demanda de 15/07)**:
+>
+> | Confronto | Previsto | Resultado | Acerto |
+> |---|---|---|---|
+> | Dplus KIA x AG.AL | Dplus 77,3% | **AG.AL 1-0** | ❌ |
+> | Hanwha Life x MIBR.LOS | HLE 97,3% | HLE 1-0 | ✅ |
+>
+> Os dois erros do dia (LYON, AG.AL) são os confrontos onde o modelo tinha
+> menos informação. AG.AL não era zebra qualquer: venceu também o G2 na
+> final superior e **liderou o Grupo A** (G2 acabou eliminado 0-2 pelo
+> Dplus Kia na decisão inferior — Dplus também classificou). MIBR.LOS,
+> outro seed 1400, eliminou LYON 2-0 antes de cair 0-2 pro JDG.
+>
+> **Dado órfão**: `predictions.jsonl` linha 2 registra "Karmine Corp x
+> Movistar KOI" — esse confronto nunca existiu no EWC (KC caiu no Grupo B,
+> KOI no C). Previsão especulativa sem jogo real; tratar como VOID no
+> grading, não como erro.
+>
+> Classificados às quartas (17/07): HLE x T1, AG.AL x KC, Gen.G x JDG,
+> BLG x Dplus Kia.
+
 > ## 🟢 FIX — duplicata "Dplus KIA"/"Dplus Kia" em ratings.json (2026-07-15)
 >
 > Causa raiz confirmada nos CSVs brutos (`data/raw/2025_oe.csv`,
@@ -93,7 +165,7 @@
 > mudou (mesmos testes de `resolve_team("t1")["region"]` etc. continuam
 > passando).
 
-> ## 🔮 PREVISÃO EM ABERTO — Final do MSI 2026 (BLG x HLE), registrada em 2026-07-12
+> ## ✅ FECHADA (ver entrada de 2026-07-16 no topo: HLE 3x2, acerto) — Final do MSI 2026 (BLG x HLE), registrada em 2026-07-12
 >
 > Série ainda não terminada: placar parcial **BLG 0 x 1 HLE** (Bo5). Usando
 > o prior estático (mesma semente de `data/teams_lol.json`, sem update

@@ -1,0 +1,16 @@
+{
+  "event": "Esports World Cup — League of Legends",
+  "stage": "Quarterfinals",
+  "scheduled_date": "2026-07-17",
+  "format": "bo3",
+  "snapshot_at": "2026-07-16T00:00:00+00:00",
+  "aliases": {
+    "AG.AL": {"canonical": "Anyone's Legend", "source": "EWC 2026 public team-branding reference", "confidence": "VERIFIED_ALIAS"}
+  },
+  "matches": [
+    ["Hanwha Life Esports", "T1"],
+    ["AG.AL", "Karmine Corp"],
+    ["Gen.G", "JD Gaming"],
+    ["Bilibili Gaming", "Dplus Kia"]
+  ]
+}
