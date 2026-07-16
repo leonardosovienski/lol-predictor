@@ -68,10 +68,21 @@
 > `data/reports/tier1_replay_2026-07-16.json` (hash do banco:
 > `b0839df999a59a2fe611e106f69a9899b5c458c5faba758d961be89728332c2b`).
 >
-> | Evento | Janela | Mapas | Histórico pré-evento | Acerto | Brier (multiclasse) | Log-loss | P média do vencedor real |
-> |---|---|---:|---:|---:|---:|---:|---:|
-> | MSI 2026 | 28/06–10/07 | 60 | 3.817 | 73,3% | 0,3782 | 0,5558 | 61,0% |
-> | Worlds 2025 | 25/09–09/11 | 96 | 2.213 | 66,7% | 0,4477 | 0,6364 | 55,0% |
+> | Evento | Janela | Mapas | Acerto | Brier (multiclasse) | Log-loss |
+> |---|---|---:|---:|---:|---:|
+> | First Stand 2025 | 10–16/03 | 35 | 42,9% | 0,5725 | 0,7795 |
+> | MSI 2025 | 27/06–13/07 | 80 | 62,5% | 0,4556 | 0,6457 |
+> | EWC 2025 | 16–20/07 | 33 | 69,7% | 0,4351 | 0,6284 |
+> | Worlds 2025 | 25/09–09/11 | 96 | 66,7% | 0,4477 | 0,6364 |
+> | First Stand 2026 | 16–22/03 | 45 | 80,0% | 0,3412 | 0,5197 |
+> | MSI 2026 | 28/06–10/07 | 60 | 73,3% | 0,3782 | 0,5558 |
+> | **Agregado** | — | **349** | **66,5%** | **0,4352** | **0,6233** |
+>
+> A calibração agregada dos favoritos ficou assim: 50–60% previsto → 60,0%
+> realizado (n=110); 60–70% → 66,1% (n=112); 70–80% → 64,4% (n=87);
+> 80–90% → 88,9% (n=36); 90%+ → 100% (n=4). Há sinal de excesso pontual
+> na faixa 70–80%, mas a amostra por faixa/evento ainda é curta: registrar
+> como diagnóstico, **não** acoplar Platt nem qualquer ajuste novo.
 >
 > Ambos são amostras de torneio pequenas, úteis como diagnóstico e não como
 > substituto do backtest prequential amplo (n=3.053). Não foram usados Platt,

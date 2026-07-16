@@ -30,3 +30,4 @@ def test_replay_is_frozen_during_tournament():
     assert first["elo_b"] == second["elo_a"]
     assert first["history_maps_a"] == 1
     assert second["history_maps_a"] == 1
+    assert report["confidence_calibration"]

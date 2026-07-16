@@ -30,6 +30,22 @@ K = 32.0
 DEFAULT_SEED = 1400.0
 
 TOURNAMENTS = {
+    "fst-2025": {
+        "league": "FST", "start": "2025-03-10 00:00:00",
+        "end": "2025-03-17 00:00:00",
+    },
+    "fst-2026": {
+        "league": "FST", "start": "2026-03-16 00:00:00",
+        "end": "2026-03-23 00:00:00",
+    },
+    "ewc-2025": {
+        "league": "EWC", "start": "2025-07-16 00:00:00",
+        "end": "2025-07-21 00:00:00",
+    },
+    "msi-2025": {
+        "league": "MSI", "start": "2025-06-27 00:00:00",
+        "end": "2025-07-14 00:00:00",
+    },
     "msi-2026": {
         "league": "MSI", "start": "2026-06-28 00:00:00",
         "end": "2026-07-11 00:00:00",
@@ -65,6 +81,24 @@ def _reconstruct_before(conn: sqlite3.Connection, start: str) -> tuple[dict[str,
         games[team_a] += 1
         games[team_b] += 1
     return ratings, games
+
+
+def _confidence_calibration(forecasts: list[dict]) -> list[dict]:
+    """Confronta confiança do favorito com sua taxa realizada, sem recalibrar."""
+    bins = ((.50, .60), (.60, .70), (.70, .80), (.80, .90), (.90, 1.000001))
+    rows = []
+    for low, high in bins:
+        selected = [row for row in forecasts
+                    if low <= max(row["probability_a"], row["probability_b"]) < high]
+        if selected:
+            rows.append({
+                "range": f"{low:.1f}-{min(high, 1):.1f}",
+                "n": len(selected),
+                "mean_favorite_probability": round(mean(
+                    max(row["probability_a"], row["probability_b"]) for row in selected), 4),
+                "favorite_win_rate": round(mean(row["correct"] for row in selected), 4),
+            })
+    return rows
 
 
 def replay(conn: sqlite3.Connection, spec: dict[str, str]) -> dict:
@@ -105,6 +139,7 @@ def replay(conn: sqlite3.Connection, spec: dict[str, str]) -> dict:
         "mean_probability_of_actual_winner": round(mean(
             row["probability_a"] if row["actual_winner"] == row["team_a"] else row["probability_b"]
             for row in forecasts), 4),
+        "confidence_calibration": _confidence_calibration(forecasts),
         "database_sha256": hashlib.sha256((ROOT / "data" / "lol.db").read_bytes()).hexdigest(),
         "limitations": [
             "Map-level replay: the database has no reliable series identifier for every event.",
