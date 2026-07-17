@@ -52,3 +52,11 @@ def test_cli_market_kills_com_linha(capsys):
 
 def test_cli_time_desconhecido_sai_2():
     assert predict.main(["Timeburgo", "T1", "--json"]) == 2
+
+
+def test_log_default_nao_e_o_ledger_oficial(monkeypatch):
+    # sem override, o CLI ad hoc NUNCA pode apontar pro ledger versionado
+    monkeypatch.delenv("PREDICTIONS_LOG_PATH", raising=False)
+    path = predict._log_path()
+    assert path.name == "predictions_adhoc.jsonl"
+    assert path.name != "predictions.jsonl"

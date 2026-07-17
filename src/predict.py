@@ -25,8 +25,10 @@ _DOMAIN = "lol"
 
 
 def _log_path() -> Path:
+    # Ad hoc do CLI NUNCA escreve em data/predictions.jsonl: aquele ledger é
+    # o protocolo oficial versionado (hash congelado na governança).
     return Path(os.environ.get("PREDICTIONS_LOG_PATH",
-                               ROOT / "data" / "predictions.jsonl"))
+                               ROOT / "data" / "predictions_adhoc.jsonl"))
 
 
 def run(team_a: str, team_b: str, *, fmt: str = "bo3",

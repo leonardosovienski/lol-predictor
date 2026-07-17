@@ -2,6 +2,7 @@
 # nao-ancorado engolia o pacote vendor/predictor_core/data/)
 # predictions.jsonl e atestados forward são exceções versionadas.
 /data/bets.jsonl
+/data/predictions_adhoc.jsonl
 /data/bankroll.jsonl
 /data/ratings.json
 /data/team_stats.json

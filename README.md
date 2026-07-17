@@ -55,7 +55,8 @@ powershell -ExecutionPolicy Bypass -File scripts\install_weekly_task.ps1 -Verify
 Previsões oficiais de evento usam horário explícito, são bloqueadas a partir de
 `scheduled_at` e percorrem PRE_EVENT → MATURED com resultado, acerto e Brier.
 O ledger `data/predictions.jsonl` é append-only e versionado para preservar a
-prova forward. Previsões ad hoc do CLI continuam separadas desse protocolo.
+prova forward. Previsões ad hoc do CLI vão para `data/predictions_adhoc.jsonl`
+(gitignored) e nunca tocam o ledger oficial.
 
 ## Estrutura
 
