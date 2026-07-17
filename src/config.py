@@ -42,22 +42,10 @@ def load_rating_names() -> list[str]:
     return list(json.loads(path.read_text(encoding="utf-8")).keys())
 
 
-@lru_cache(maxsize=1)
-def load_team_stats() -> dict:
-    """Médias por time ({nome: {kills_per_game}}), materializadas na Fase 1.
-    Ausente → dict vazio → média da liga (model.py)."""
-    cfg = load_config()
-    path = ROOT / cfg.get("team_stats_file", "data/team_stats.json")
-    if not path.exists():
-        return {}
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
 def clear_caches() -> None:
     load_config.cache_clear()
     load_teams.cache_clear()
     load_rating_names.cache_clear()
-    load_team_stats.cache_clear()
 
 
 def resolve_team(name: str) -> dict:

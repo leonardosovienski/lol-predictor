@@ -19,8 +19,6 @@ model:
 teams_file: data/teams_lol.json
 # ratings correntes persistidos por update_ratings (ausente → initial_elo)
 ratings_file: data/ratings.json
-# médias por time (kills_per_game) materializadas na Fase 1; ausente → média
-team_stats_file: data/team_stats.json
 
 database: data/lol.db
 
