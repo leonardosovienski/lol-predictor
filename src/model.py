@@ -57,11 +57,15 @@ class EloModel:
         seeded_names = {t["name"].casefold(): t["name"] for t in teams}
         self.path = Path(ratings_file) if ratings_file else (
             ROOT / cfg.get("ratings_file", "data/ratings.json"))
+        # só nomes vividos (ou atualizados nesta sessão) voltam pro disco;
+        # sementes nunca jogadas não contaminam o snapshot de identidades
+        self._persistable: set[str] = set()
         if self.path.exists():
             lived = json.loads(self.path.read_text(encoding="utf-8"))
             for name, value in lived.items():
                 canonical = seeded_names.get(name.casefold(), name)
                 self.ratings[canonical] = float(value)
+                self._persistable.add(canonical)
         # Platt H3 foi refutada: serving canônico permanece Elo cru.
         self.platt = None
 
@@ -124,22 +128,37 @@ class EloModel:
                 "kills_std": std, "model": "kills-normal-fase0"}
 
     def update_ratings(self, team_a: str, team_b: str,
-                       result_a: int, result_b: int) -> dict:
-        """Atualiza o Elo após partida real. K pelo formato inferido do placar
-        (soma ≤1 → BO1; ≤3 → BO3; senão BO5). Persiste em ratings_file."""
+                       result_a: int, result_b: int,
+                       format: str | None = None) -> dict:
+        """Atualiza o Elo após partida real. `format` explícito quando
+        conhecido (um 3-0 pode ser BO5); sem ele, K é inferido do placar
+        (soma ≤1 → BO1; ≤3 → BO3; senão BO5). Persiste em ratings_file
+        apenas ratings vividos/atualizados — nunca sementes intactas."""
         a, elo_a = self._elo(team_a)
         b, elo_b = self._elo(team_b)
-        total = result_a + result_b
-        fmt = "bo1" if total <= 1 else ("bo3" if total <= 3 else "bo5")
+        if format is not None:
+            fmt = format.lower()
+            if fmt not in K_FACTORS:
+                raise ValueError(
+                    f"formato desconhecido: {format!r} (use bo1/bo3/bo5)")
+            wins = max(result_a, result_b)
+            if wins > {"bo1": 1, "bo3": 2, "bo5": 3}[fmt]:
+                raise ValueError(
+                    f"placar {result_a}-{result_b} incompatível com {fmt}")
+        else:
+            total = result_a + result_b
+            fmt = "bo1" if total <= 1 else ("bo3" if total <= 3 else "bo5")
         k = K_FACTORS[fmt]
         s_a = 1.0 if result_a > result_b else 0.0
         e_a = win_probability(elo_a, elo_b)
         delta = k * (s_a - e_a)
         self.ratings[a] = elo_a + delta
         self.ratings[b] = elo_b - delta
+        self._persistable.update((a, b))
+        persisted = {n: self.ratings[n] for n in sorted(self._persistable)}
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(
-            json.dumps(self.ratings, ensure_ascii=False, indent=2) + "\n",
+            json.dumps(persisted, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8")
         return {"team_a": a, "team_b": b, "format": fmt, "k": k,
                 "delta": round(delta, 2),

@@ -65,6 +65,27 @@ def test_k_por_formato_e_persistencia(model):
     assert recarregado.ratings["Fnatic"] == model.ratings["Fnatic"]
 
 
+def test_update_formato_explicito_vence_inferencia(model):
+    # 3-0 em BO5 seria inferido como BO3 (K=40); explícito corrige pra K=48
+    assert model.update_ratings("T1", "Gen.G", 3, 0)["k"] == 40
+    assert model.update_ratings("T1", "Gen.G", 3, 0, format="bo5")["k"] == 48
+    with pytest.raises(ValueError):
+        model.update_ratings("T1", "Gen.G", 2, 0, format="bo1")
+    with pytest.raises(ValueError):
+        model.update_ratings("T1", "Gen.G", 2, 1, format="bo7")
+
+
+def test_update_persiste_so_ratings_vividos(tmp_path):
+    ratings = tmp_path / "ratings.json"
+    ratings.write_text('{"T1": 1700.0}', encoding="utf-8")
+    model = EloModel(ratings_file=ratings)
+    model.update_ratings("T1", "Gen.G", 2, 0)
+    import json
+    persisted = json.loads(ratings.read_text(encoding="utf-8"))
+    # só o vivido (T1) e os atualizados (T1, Gen.G) — nenhuma semente intacta
+    assert set(persisted) == {"T1", "Gen.G"}
+
+
 def test_erros(model):
     with pytest.raises(ValueError):
         model.predict_match("Time Fantasma", "T1")
