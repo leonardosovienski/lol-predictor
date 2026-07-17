@@ -36,6 +36,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import NormalDist, variance
@@ -77,7 +79,63 @@ def load_trials(path: Path | str | None = None) -> list[dict]:
     p = Path(path or _DEFAULT_PATH)
     if not p.exists():
         return []
-    return json.loads(p.read_text(encoding="utf-8"))
+    try:
+        parsed = json.loads(p.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        # Auditoria hostil 2026-07-17: antes propagava JSONDecodeError cru,
+        # sem caminho — inconsistente com kernel/obs.py e kernel/jsonl_store.py,
+        # que sempre incluem o arquivo na mensagem desde df575a9.
+        raise ValueError(f"{p}: trials.json corrompido — {exc}") from exc
+    if not isinstance(parsed, list):
+        # JSON válido (ex.: `null`) mas não é a lista esperada — sem esta
+        # checagem, validate_trials(None) explodia com TypeError opaco,
+        # sem relação nenhuma com a causa real (arquivo com conteúdo errado).
+        raise ValueError(f"{p}: trials.json deve conter uma lista de tentativas "
+                         f"— encontrado {type(parsed).__name__}")
+    return parsed
+
+
+def _acquire_trials_lock(p: Path, *, timeout: float = 10.0, poll: float = 0.05) -> Path:
+    """Lock de arquivo (O_CREAT|O_EXCL) em torno da seção crítica read-modify-
+    write de register_trial. Sem isto, dois processos podiam ler o mesmo
+    estado, cada um calcular sua própria trial nova, e a segunda escrita
+    sobrescrevia a primeira EM SILÊNCIO — reproduzido na auditoria hostil
+    2026-07-17: uma trial registrada desaparecia do arquivo final sem erro
+    nem aviso algum, justamente o "esquecimento seletivo" que a governança
+    N+1 do módulo existe para impedir. Advisory only (protege register_trial
+    contra si mesmo em processos concorrentes, não contra edição manual do
+    arquivo); locks mais velhos que `timeout` são considerados órfãos e
+    reclamados."""
+    lock_path = p.with_suffix(p.suffix + ".lock")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            return lock_path
+        except FileExistsError:
+            try:
+                age = time.time() - lock_path.stat().st_mtime
+            except OSError:
+                continue  # lock sumiu entre o open e o stat: tenta de novo
+            if age > timeout:
+                try:
+                    lock_path.unlink()
+                except OSError:
+                    pass
+                continue
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    f"não foi possível obter o lock de {p} (concorrendo com "
+                    f"outro processo) em {timeout}s")
+            time.sleep(poll)
+
+
+def _release_trials_lock(lock_path: Path) -> None:
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def validate_trials(trials: list[dict]) -> list[str]:
@@ -166,8 +224,28 @@ def register_trial(name: str, *, params: dict, sharpe: float | None = None,
 
     `now` injetável para teste determinístico. `extra` aceita os campos
     opcionais do schema (features_used, train_period, test_period). Valida o
-    schema ANTES de gravar. Retorna a lista completa após a escrita."""
+    schema ANTES de gravar. Retorna a lista completa após a escrita.
+
+    Concorrência (auditoria hostil 2026-07-17): a seção read-modify-write
+    inteira roda sob um lock de arquivo (`_acquire_trials_lock`) — sem ele,
+    dois processos podiam ler o mesmo estado e a segunda escrita apagava
+    silenciosamente a tentativa que a primeira tinha acabado de registrar."""
     p = Path(path or _DEFAULT_PATH)
+    lock_path = _acquire_trials_lock(p)
+    try:
+        return _register_trial_locked(name, params=params, sharpe=sharpe, notes=notes,
+                                       path=p, now=now, power_attestation=power_attestation,
+                                       metric=metric, **extra)
+    finally:
+        _release_trials_lock(lock_path)
+
+
+def _register_trial_locked(name: str, *, params: dict, sharpe: float | None,
+                           notes: str, path: Path, now: str | None,
+                           power_attestation: Path | str | bool | None,
+                           metric: str | None, **extra) -> list[dict]:
+    """Corpo de register_trial que roda DENTRO do lock — não chamar direto."""
+    p = path
     trials = load_trials(p)
     stamp = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     entry = {"name": name, "registered_at": stamp, "params": params,

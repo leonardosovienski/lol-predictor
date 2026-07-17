@@ -8,6 +8,7 @@ formato nativo de uma API para estes envelopes; o domínio só enxerga os contra
 from __future__ import annotations
 
 import abc
+import copy
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -106,6 +107,17 @@ class PredictionPoint:
                 f"PredictionPoint inválido: matures_at ({self.matures_at.isoformat()}) "
                 f"anterior a predicted_at ({self.predicted_at.isoformat()}) — "
                 "previsão do já-observável é lookahead")
+        # `frozen=True` só impede REBIND de atributo, não mutação do objeto
+        # referenciado (auditoria hostil 2026-07-17: um dict/list passado em
+        # metadata/value continuava mutável pós-construção, deixando o
+        # invariante "impossível, não prometido" falso na prática). Cópia
+        # defensiva de containers mutáveis conhecidos; `value` só é copiado
+        # quando é list/dict/set — tipos escalares/imutáveis/objetos de
+        # domínio opacos passam direto, sem tentativa de deepcopy arbitrária.
+        object.__setattr__(self, "metadata",
+                           copy.deepcopy(self.metadata) if self.metadata is not None else None)
+        if isinstance(self.value, (list, dict, set)):
+            object.__setattr__(self, "value", copy.deepcopy(self.value))
 
     def is_mature(self, now: datetime) -> bool:
         return now >= self.matures_at

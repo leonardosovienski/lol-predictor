@@ -13,6 +13,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from predictor_core.kernel.timeindex import NaiveDatetimeError, parse_iso
+
 
 def setup_logging(level: str = "INFO", fmt: str | None = None) -> None:
     fmt = fmt or "%(asctime)s %(levelname)-8s %(name)s — %(message)s"
@@ -64,6 +66,17 @@ def emit_event(domain: str, event: str, *, run_id: str | None = None,
     if nao_finitos:
         raise ValueError(f"emit_event: 'metrics' com valor não-finito (NaN/inf): "
                          f"{nao_finitos} — JSON não representa NaN/inf; trate antes de emitir")
+    if timestamp is not None:
+        # Auditoria hostil 2026-07-17: timestamp injetado não era validado —
+        # string arbitrária, datetime naive serializado, ou fuso não-UTC
+        # eram gravados como estão, apesar de kernel/timeindex.py existir
+        # exatamente para não deixar o core adivinhar fuso. parse_iso levanta
+        # ValueError/NaiveDatetimeError em qualquer um desses casos.
+        try:
+            parse_iso(timestamp)
+        except (ValueError, NaiveDatetimeError) as exc:
+            raise ValueError(f"emit_event: 'timestamp' inválido ({timestamp!r}) — "
+                             f"{exc}") from exc
     record = {
         "timestamp": timestamp or datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "domain": domain,

@@ -108,6 +108,12 @@ class RatingBook:
         n = len(ranking)
         if n < 2:
             raise ValueError("record_ranking exige >= 2 entidades")
+        if len(set(ranking)) != n:
+            # Auditoria hostil 2026-07-17: sem esta checagem, um nome duplicado
+            # gerava um confronto "entidade contra si mesma" (mesmo objeto de
+            # estado nos dois lados), inflando `games` e descontando o rating
+            # do adversário comum duas vezes contra a mesma pessoa.
+            raise ValueError(f"record_ranking exige nomes únicos — duplicata em {ranking!r}")
         base_k, base_cb = self.k, self.k_factor
         try:
             # A divisão por (N-1) precisa valer TAMBÉM com k_factor dinâmico —
