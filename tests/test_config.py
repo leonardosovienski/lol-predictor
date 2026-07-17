@@ -36,3 +36,10 @@ def test_resolve_team_substring_e_erro():
 def test_rating_exato_precede_substring_de_time_semente():
     assert resolve_team("LOUD")["name"] == "LOUD"
     assert resolve_team("BNK FEARX")["name"] == "BNK FearX"
+
+
+def test_substring_ambigua_no_top30_nao_cai_pro_ratings():
+    # "Gaming" bate em vários times do Top 30 — tem que acusar ambiguidade
+    # com sugestões, nunca resolver silencioso pra um nome do ratings.json
+    with pytest.raises(ValueError, match="quis dizer"):
+        resolve_team("Gaming")

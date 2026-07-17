@@ -88,7 +88,9 @@ def resolve_team(name: str) -> dict:
     if len(hits) == 1:
         return hits[0]
     rhits = [n for n in rating_names if low in n.lower()]
-    if len(rhits) == 1:
+    # 2+ times do Top 30 batendo já é ambíguo — não cair silenciosamente
+    # num nome único do ratings.json (mesma família do bug LOUD/Cloud9)
+    if not hits and len(rhits) == 1:
         return {"name": rhits[0]}
 
     sugestao = [t["name"] for t in hits] + rhits
