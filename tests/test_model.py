@@ -42,13 +42,10 @@ def test_kills_total_linha_move_probabilidade(model):
     assert baixa["over_prob"] > alta["over_prob"]
 
 
-def test_kills_total_usa_stats_por_time(model, monkeypatch):
-    from src import model as m
-    monkeypatch.setattr(m, "load_team_stats", lambda: {
-        "T1": {"kills_per_game": 16.0}, "Gen.G": {"kills_per_game": 12.0}})
+def test_kills_total_nao_reativa_stats_por_time_refutadas(model):
     k = model.predict_kills_total("T1", "Gen.G")
     assert k["total_projetado"] == 28.0
-    assert k["kpg_a"] == 16.0 and k["kpg_b"] == 12.0
+    assert k["kpg_a"] == 14.0 and k["kpg_b"] == 14.0
 
 
 def test_update_ratings_vencedor_sobe_soma_zero(model):
@@ -75,3 +72,13 @@ def test_erros(model):
         model.predict_match("T1", "t1")          # mesmo time
     with pytest.raises(ValueError):
         model.predict_match("T1", "Gen.G", "bo7")
+
+
+def test_rating_vivido_normaliza_capitalizacao_da_semente(tmp_path):
+    ratings = tmp_path / "ratings.json"
+    ratings.write_text('{"BNK FEARX": 1460.5, "EDward Gaming": 1386.6}',
+                       encoding="utf-8")
+    model = EloModel(ratings_file=ratings)
+    assert model.ratings["BNK FearX"] == 1460.5
+    assert model.ratings["Edward Gaming"] == 1386.6
+    assert "BNK FEARX" not in model.ratings and "EDward Gaming" not in model.ratings

@@ -62,13 +62,16 @@ def test_jogo_com_linha_unica_descartado(tmp_path, capsys):
 
 def test_db_upsert_idempotente():
     conn = db.connect(":memory:")
-    g = {"game_id": "g1", "date": "2025-02-01 08:00:00", "league": "LCK",
-         "split": "Spring", "game": 1, "team_a": "T1", "team_b": "Gen.G",
-         "winner": "a", "kills_a": 18, "kills_b": 9,
-         "completeness": "complete"}
-    db.upsert_games(conn, [g])
-    db.upsert_games(conn, [dict(g, kills_a=19)])
-    rows = conn.execute("SELECT kills_a FROM games").fetchall()
+    try:
+        g = {"game_id": "g1", "date": "2025-02-01 08:00:00", "league": "LCK",
+             "split": "Spring", "game": 1, "team_a": "T1", "team_b": "Gen.G",
+             "winner": "a", "kills_a": 18, "kills_b": 9,
+             "completeness": "complete"}
+        db.upsert_games(conn, [g])
+        db.upsert_games(conn, [dict(g, kills_a=19)])
+        rows = conn.execute("SELECT kills_a FROM games").fetchall()
+    finally:
+        conn.close()
     assert rows == [(19,)]
 
 
@@ -78,5 +81,8 @@ def test_db_read_only(tmp_path):
     conn = db.connect(str(p))
     conn.close()
     ro = db.connect(str(p), read_only=True)
-    with pytest.raises(sqlite3.OperationalError):
-        ro.execute("DELETE FROM games")
+    try:
+        with pytest.raises(sqlite3.OperationalError):
+            ro.execute("DELETE FROM games")
+    finally:
+        ro.close()

@@ -1,5 +1,6 @@
 """Domain payload for weekly LoL refresh; deliberately unaware of Scheduler."""
 import json
+import math
 import subprocess
 import sys
 import urllib.request
@@ -63,7 +64,12 @@ def ratings_valid(started_at: float) -> bool:
     path = ROOT / "data" / "ratings.json"
     try:
         ratings = json.loads(path.read_text(encoding="utf-8"))
-        valid = isinstance(ratings, dict) and bool(ratings) and all(isinstance(value, (int, float)) for value in ratings.values())
+        names = [name.casefold() for name in ratings] if isinstance(ratings, dict) else []
+        valid = (isinstance(ratings, dict) and bool(ratings)
+                 and len(names) == len(set(names))
+                 and all(isinstance(value, (int, float))
+                         and math.isfinite(float(value))
+                         for value in ratings.values()))
         fresh = path.stat().st_mtime >= started_at
         if not valid or not fresh:
             log(f"  [ratings] artefato invalido ou sem refresh nesta execucao: valid={valid} fresh={fresh}")

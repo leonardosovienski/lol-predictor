@@ -19,18 +19,21 @@ def run() -> None:
     if not provider.health_check():
         sys.exit("data/raw sem CSVs — baixe do Drive do Oracle's Elixir")
     conn = db.connect(str(ROOT / cfg.get("database", "data/lol.db")))
-    batch, total = [], 0
-    for g in provider.iter_games():
-        batch.append(g)
-        if len(batch) >= 500:
+    try:
+        batch, total = [], 0
+        for g in provider.iter_games():
+            batch.append(g)
+            if len(batch) >= 500:
+                total += db.upsert_games(conn, batch)
+                batch = []
+        if batch:
             total += db.upsert_games(conn, batch)
-            batch = []
-    if batch:
-        total += db.upsert_games(conn, batch)
-    n = conn.execute("SELECT COUNT(*) FROM games").fetchone()[0]
-    dmin, dmax = conn.execute("SELECT MIN(date), MAX(date) FROM games").fetchone()
-    ligas = conn.execute(
-        "SELECT league, COUNT(*) FROM games GROUP BY 1 ORDER BY 2 DESC").fetchall()
+        n = conn.execute("SELECT COUNT(*) FROM games").fetchone()[0]
+        dmin, dmax = conn.execute("SELECT MIN(date), MAX(date) FROM games").fetchone()
+        ligas = conn.execute(
+            "SELECT league, COUNT(*) FROM games GROUP BY 1 ORDER BY 2 DESC").fetchall()
+    finally:
+        conn.close()
     print(f"games no banco: {n} ({dmin} .. {dmax})")
     print("por liga:", ", ".join(f"{lg}={c}" for lg, c in ligas))
 

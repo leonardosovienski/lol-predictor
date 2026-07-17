@@ -24,7 +24,8 @@ failures: list[str] = []
 
 def check_pytest() -> None:
     print("[1/3] pytest (suite completa)...")
-    r = subprocess.run([sys.executable, "-m", "pytest", "tests/", "-q"],
+    r = subprocess.run([sys.executable, "-m", "pytest", "tests/", "-q",
+                        "-W", "error"],
                        cwd=ROOT, capture_output=True, text=True)
     tail = (r.stdout or "").strip().splitlines()[-1:] or ["(sem saida)"]
     print(f"      {tail[0]}")
@@ -65,6 +66,34 @@ def check_critical_files() -> None:
             failures.append("teams_lol.json: ligas fora do esperado (LCK/LPL/LEC/LCS)")
     except Exception as e:
         failures.append(f"teams_lol.json ilegivel: {e}")
+
+    try:
+        ratings = json.loads((ROOT / "data" / "ratings.json").read_text(encoding="utf-8"))
+        folded = [name.casefold() for name in ratings]
+        if len(folded) != len(set(folded)):
+            failures.append("ratings.json tem identidades duplicadas por capitalizacao")
+    except Exception as e:
+        failures.append(f"ratings.json ilegivel: {e}")
+
+    try:
+        ledger_path = ROOT / "data" / "predictions.jsonl"
+        ledger = [json.loads(line) for line in ledger_path.read_text(
+            encoding="utf-8").splitlines() if line.strip()]
+        ids = [row["prediction_id"] for row in ledger if row.get("prediction_id")]
+        lifecycle_keys = [(row.get("prediction_id"), row.get("lifecycle_status"))
+                          for row in ledger if row.get("prediction_id")]
+        pre = {row["prediction_id"] for row in ledger
+               if row.get("lifecycle_status") == "PRE_EVENT"}
+        matured = {row["prediction_id"] for row in ledger
+                   if row.get("lifecycle_status") == "MATURED"}
+        if len(ids) != len(pre) + len(matured):
+            failures.append("prediction ledger tem lifecycle desconhecido com prediction_id")
+        if len(lifecycle_keys) != len(set(lifecycle_keys)):
+            failures.append("prediction ledger tem lifecycle duplicado")
+        if matured - pre:
+            failures.append("prediction ledger tem MATURED sem PRE_EVENT")
+    except Exception as e:
+        failures.append(f"prediction ledger ilegivel: {e}")
 
     if not (ROOT / ".env.example").exists():
         failures.append(".env.example ausente")

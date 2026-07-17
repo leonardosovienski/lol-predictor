@@ -68,6 +68,13 @@ def test_no_code_file_is_gitignored():
         f"{ignored} — ancore a regra (ex.: '/data/' em vez de 'data/')")
 
 
+def test_prediction_ledger_is_versioned_for_forward_audit():
+    proc = subprocess.run(
+        [_git, "-C", str(ROOT), "ls-files", "data/predictions.jsonl"],
+        capture_output=True, text=True, check=True)
+    assert proc.stdout.strip() == "data/predictions.jsonl"
+
+
 def test_vendor_manifest_files_are_tracked():
     """Todo arquivo do CORE_MANIFEST está rastreado pelo git (não só presente).
 

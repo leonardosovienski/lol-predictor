@@ -1,0 +1,1 @@
+{"entrypoint_exists": true, "observed_at_utc": "2026-07-17T02:10:41Z", "pid": 38720, "ratings_sha256": "92b6c18123c712291b6a1bbedc91b8f705071b28bdda095e7d413b8984c06821", "schema_version": "lol-scheduler-probe/1.0", "status": "SUCCEEDED", "working_directory": "C:\\Claude-projetos\\Claude\\lol-predictor", "working_directory_ok": true}

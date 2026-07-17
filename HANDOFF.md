@@ -1,5 +1,37 @@
 # HANDOFF.md — lol-predictor
 
+> ## Estado operacional fechado em 2026-07-16
+>
+> - Serving canônico: Elo H1 cru. Platt H3 e kills por time H2 permanecem
+>   refutados e agora estão bloqueados no código, não apenas por ausência de
+>   artefato.
+> - Identidade corrigida: nomes exatos de ratings vencem substrings (`LOUD`
+>   não vira mais `Cloud9`), e diferenças apenas de capitalização são
+>   normalizadas no serving e no backtest. O snapshot operacional
+>   rematerializado possui 82 identidades, hash
+>   `92b6c18123c712291b6a1bbedc91b8f705071b28bdda095e7d413b8984c06821`.
+> - As quatro previsões das quartas **não foram alteradas**. Continuam
+>   congeladas no snapshot pré-evento original `d45a06c…` e são reproduzíveis
+>   pelo artefato versionado
+>   `data/snapshots/ewc_2026_pre_event_ratings.json` (hash
+>   `51eb7d9842a701dd29829169f22d0d0d9a48d49e1e522a5e4d7617abad58491e`).
+> - PRE_EVENT agora falha a partir de `scheduled_at`, antes de qualquer escrita.
+>   MATURED valida vencedor e placar compatível com BO1/BO3/BO5. Uma mudança
+>   posterior de hash de ratings não duplica a previsão do mesmo confronto.
+> - `data/predictions.jsonl` passou a ser versionado. Estado atual: 11 linhas
+>   legadas + 4 PRE_EVENT, hash
+>   `93a866be57ddfbda7eb27a0ad80319875093b40506250d1d1be15ced69ecae72`.
+> - O refresh completo passou em worktree isolada (download, ingest, ratings,
+>   runner, heartbeat, JSONL, lock e artifact). O Windows Scheduler também foi
+>   provado por tarefa inofensiva real; atestado versionado em
+>   `data/scheduler_probe_attestation.json`. O refresh semanal natural segue
+>   agendado para 20/07 às 08:30 BRT e não foi antecipado para não contaminar
+>   o bracket da EWC.
+> - H1 segue comprovada após normalização: n=3.053, Brier 0,4432 vs 0,4612,
+>   acerto 64,6%, DM p=0,0006. O resumo agora inclui diagnóstico por competição,
+>   sem ajuste regional manual.
+> - Sem odds, shadow, edge financeiro, patch, draft, lado ou roster ad hoc.
+
 > ## 📌 EWC 2026 — replay completo da fase de grupos e agenda restante (2026-07-16)
 >
 > **Método do replay.** Foram identificadas as 20 séries da fase de grupos

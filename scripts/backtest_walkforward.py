@@ -14,9 +14,8 @@ Desenho (sem lookahead por construção):
   linhas do config vs baseline "média da liga" pura. DM por linha.
 
 Saídas: data/walkforward_summary.json + relatório no stdout. Ao final,
-materializa data/ratings.json (Elo vivido), data/team_stats.json
-(kills_per_game) e data/calibration.json (médias/sigma por liga) — o serving
-da Fase 0 passa a usá-los sem mudar código.
+materializa data/ratings.json (Elo vivido), pesquisa de kills fora do serving
+e diagnóstico H1 por competição. Platt e kills por time não são ativados.
 """
 import json
 import statistics as st
@@ -47,6 +46,7 @@ def run(cfg, conn):
     min_lg = int(bt["min_league_games_kills"])
 
     seeds = {t["name"]: float(t["initial_elo"]) for t in load_teams()}
+    canonical_case = {name.casefold(): name for name in seeds}
     elo = dict(seeds)                       # vivido (atualiza)
     banda = dict(seeds)                     # baseline congelado
     n_games_seen = defaultdict(int)
@@ -64,10 +64,13 @@ def run(cfg, conn):
     team_kills = defaultdict(list)          # time -> [kills do time]
 
     probs_m, probs_b, outs = [], [], []     # vencedor: modelo, banda, outcome
+    measured_leagues = []
     loss_m, loss_b = [], []                 # log-loss por jogo (p/ DM)
     kills_eval = {ln: {"pm": [], "pb": [], "y": []} for ln in lines}
 
     for gid, d, league, a, b, winner, ka, kb in rows:
+        a = canonical_case.get(a.casefold(), a)
+        b = canonical_case.get(b.casefold(), b)
         ea = elo.get(a, seed_default)
         eb = elo.get(b, seed_default)
         p_model = win_probability(ea, eb)
@@ -80,6 +83,7 @@ def run(cfg, conn):
             probs_m.append([p_model, 1.0 - p_model])
             probs_b.append([p_banda, 1.0 - p_banda])
             outs.append(y)
+            measured_leagues.append(league)
             loss_m.append(-_ln(p_model if y == 0 else 1 - p_model))
             loss_b.append(-_ln(p_banda if y == 0 else 1 - p_banda))
 
@@ -115,7 +119,7 @@ def run(cfg, conn):
     return {"probs_m": probs_m, "probs_b": probs_b, "outs": outs,
             "loss_m": loss_m, "loss_b": loss_b, "kills": kills_eval,
             "elo": elo, "team_kills": team_kills, "lg_totals": lg_totals,
-            "n_total": len(rows)}
+            "measured_leagues": measured_leagues, "n_total": len(rows)}
 
 
 def _ln(p, eps=1e-12):
@@ -126,7 +130,10 @@ def _ln(p, eps=1e-12):
 def main():
     cfg = load_config()
     conn = db.connect(str(ROOT / cfg["database"]), read_only=True)
-    r = run(cfg, conn)
+    try:
+        r = run(cfg, conn)
+    finally:
+        conn.close()
     n = len(r["outs"])
     print(f"PREQUENTIAL LoL — {r['n_total']} mapas processados, "
           f"{n} na janela de medição")
@@ -162,6 +169,21 @@ def main():
                      "verdict": "COMPROVADA" if h1_ok else "REFUTADA",
                      "calibracao": calib}
 
+    regional = {}
+    for league in sorted(set(r["measured_leagues"])):
+        idx = [i for i, value in enumerate(r["measured_leagues"])
+               if value == league]
+        probs = [r["probs_m"][i] for i in idx]
+        outcomes = [r["outs"][i] for i in idx]
+        regional[league] = {
+            "n": len(idx),
+            "brier_multiclasse": round(brier(probs, outcomes), 4),
+            "acerto": round(st.mean(
+                1 if (p[0] >= .5) == (y == 0) else 0
+                for p, y in zip(probs, outcomes)), 4),
+        }
+    summary["h1"]["por_competicao"] = regional
+
     # ---- H2-LOL: abates ----
     print("\nH2-LOL (total de abates, Normal por time vs média da liga):")
     h2 = {}
@@ -194,8 +216,7 @@ def main():
                    ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     # H2 REFUTADA (2026-07-11): média por time PERDE da média da liga — o
     # arquivo vai para *_pesquisa.json de propósito, para o serving NÃO o
-    # consumir (model.predict_kills_total lê team_stats.json; sem ele, cai
-    # na média da liga, que é o comportamento validado).
+    # consumir. O serving está travado no baseline agregado validado.
     stats = {t: {"kills_per_game": round(st.mean(ks[-40:]), 2)}
              for t, ks in r["team_kills"].items() if len(ks) >= 10}
     (data / "team_stats_pesquisa.json").write_text(

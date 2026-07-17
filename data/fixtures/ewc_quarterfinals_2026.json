@@ -4,6 +4,9 @@
   "scheduled_date": "2026-07-17",
   "format": "bo3",
   "snapshot_at": "2026-07-16T00:00:00+00:00",
+  "ratings_path": "data/snapshots/ewc_2026_pre_event_ratings.json",
+  "source_ratings_sha256": "d45a06c250b24fb69a758bd5362c6a803b8829b949f4b1823b5910cd528f262c",
+  "source_ratings_mtime_utc": "2026-07-14T14:43:50+00:00",
   "aliases": {
     "AG.AL": {"canonical": "Anyone's Legend", "source": "EWC 2026 public team-branding reference", "confidence": "VERIFIED_ALIAS"}
   },

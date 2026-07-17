@@ -10,9 +10,13 @@ def test_identidade_sem_fit():
     assert PlattCalibrator().apply(0.42) == pytest.approx(0.42, abs=1e-9)
 
 
-def test_serving_cru_enquanto_refutada(tmp_path):
-    """h3-lol-elo-platt REFUTADA (DM p=0.36): calibration_platt.json NÃO
-    pode existir — o serving usa a prob crua do Elo."""
+def test_serving_cru_enquanto_refutada(tmp_path, monkeypatch):
+    """Mesmo se um artefato experimental reaparecer, o serving usa Elo cru."""
+    from src import model as model_module
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "calibration_platt.json").write_text(
+        '{"a": 0.5, "b": 0.1}', encoding="utf-8")
+    monkeypatch.setattr(model_module, "ROOT", tmp_path)
     m = EloModel(ratings_file=tmp_path / "r.json")
     assert m.platt is None, (
         "calibration_platt.json presente com a trial REFUTADA — remova ou "

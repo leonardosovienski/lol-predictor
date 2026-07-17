@@ -94,8 +94,25 @@ def test_pre_event_registration_is_idempotent(tmp_path: Path) -> None:
     now = datetime(2026, 7, 16, 20, 0, tzinfo=timezone.utc)
     assert mod.register_pre_event(report, ledger, now) == {"registered": 1, "already_present": 0}
     assert mod.register_pre_event(report, ledger, now) == {"registered": 0, "already_present": 1}
+    changed_snapshot = {**report, "ratings_sha256": "f" * 64}
+    assert mod.register_pre_event(changed_snapshot, ledger, now) == {
+        "registered": 0, "already_present": 1}
     record = json.loads(ledger.read_text(encoding="utf-8").splitlines()[0])
     assert record["lifecycle_status"] == "PRE_EVENT" and record["result"] is None
+
+
+def test_pre_event_is_blocked_when_match_already_started(tmp_path: Path) -> None:
+    mod = load_module()
+    scheduled = fixture([["T1", "Gen.G"]])
+    scheduled["matches"] = [{"teams": ["T1", "Gen.G"],
+                              "scheduled_at": "2026-07-17T08:00:00-03:00"}]
+    report = mod.build(scheduled)
+    import pytest
+    with pytest.raises(ValueError, match="PRE_EVENT blocked"):
+        mod.register_pre_event(report, tmp_path / "late.jsonl",
+                               datetime(2026, 7, 17, 12, 0,
+                                        tzinfo=timezone.utc))
+    assert not (tmp_path / "late.jsonl").exists()
 
 
 def test_maturation_waits_then_records_result_brier_and_correct(tmp_path: Path) -> None:
@@ -118,5 +135,22 @@ def test_maturation_waits_then_records_result_brier_and_correct(tmp_path: Path) 
     matured = json.loads(ledger.read_text(encoding="utf-8").splitlines()[-1])
     assert matured["lifecycle_status"] == "MATURED"
     assert matured["result"] == {"winner": "Gen.G", "score": "0-1"}
-    assert matured["correct"] is False
+    assert matured["correct"] is (matured["value"]["favorite"] == "Gen.G")
     assert matured["brier"] == round(2 * matured["value"]["probability_a"] ** 2, 8)
+
+
+def test_maturation_rejects_score_incompatible_with_format(tmp_path: Path) -> None:
+    mod = load_module()
+    scheduled = fixture([["T1", "Gen.G"]])
+    scheduled["matches"] = [{"teams": ["T1", "Gen.G"],
+                              "scheduled_at": "2026-07-17T08:00:00-03:00"}]
+    ledger = tmp_path / "predictions.jsonl"
+    mod.register_pre_event(mod.build(scheduled), ledger,
+                           datetime(2026, 7, 16, 20, 0, tzinfo=timezone.utc))
+    bad = {"results": [{"team_a": "T1", "team_b": "Gen.G",
+                         "winner": "Gen.G", "score": "1-0"}]}
+    import pytest
+    with pytest.raises(ValueError, match="invalid bo1 score"):
+        mod.mature_results(ledger, bad,
+                           datetime(2026, 7, 17, 12, 1,
+                                    tzinfo=timezone.utc))

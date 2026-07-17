@@ -2,9 +2,10 @@
 
 > **Status: Fase 1 CONCLUÍDA (2026-07-11).** Backtest prequential sobre
 > 3.877 mapas do Oracle's Elixir: **H1 (Elo vencedor) COMPROVADA** (Brier
-> 0,4434 vs banda 0,4657, acerto 64,5%, DM p<1e-4) e **H2 (abates por time)
+> 0,4432 vs banda 0,4612, acerto 64,6%, DM p=0,0006) e **H2 (abates por time)
 > REFUTADA** — a média da liga vence; o serving de kills usa só ela. Elo
-> vivido de 85 times materializado em `data/ratings.json`. **Sem odds, sem
+> vivido de 82 identidades canônicas materializado em `data/ratings.json`.
+> **Sem odds, sem
 > apostas** — métrica é probabilística (Fase 1b exigiria fonte de odds).
 > Relatório: `docs/RELATORIO_FASE1.md`. Não é ferramenta de investimento.
 
@@ -19,10 +20,12 @@ série (BO1/BO3/BO5) → prob de cada time, prob da zebra, mapas esperados.
 K por formato: BO1=32, BO3=40, BO5=48; `update_ratings` conserva soma zero e
 persiste em `data/ratings.json`.
 
-**Total de abates**: total por mapa ≈ Normal(kpg_a + kpg_b, σ) — mesmo padrão
-do nba-predictor. Fase 0 usa a média da liga (28 abates/mapa, placeholder
-declarado no config); `data/team_stats.json` diferencia por time quando a
-Fase 1 materializar. Linha default 24.5.
+**Total de abates**: H2 por time foi refutada e está bloqueada no serving.
+O caminho legado de total usa somente o baseline agregado declarado no config;
+`team_stats.json` não é consumido. Não faz parte das previsões EWC.
+
+**Calibração**: Platt H3 foi refutada e está bloqueada no serving mesmo se um
+artefato experimental reaparecer. A probabilidade canônica é o Elo H1 cru.
 
 **Semente do Elo**: bandas por liga ancoradas nos **Power Scores regionais
 oficiais do Global Power Rankings split-2 2026** (LCK 1425 > LPL 1419 >
@@ -42,13 +45,17 @@ desempenho por patch.
 .venv\Scripts\python.exe -m src.predict "Bilibili Gaming" "G2 Esports" --format bo5
 
 # Testes e CI
-.venv\Scripts\python.exe -m pytest tests/ -v
+.venv\Scripts\python.exe -m pytest tests/ -v -W error
 .venv\Scripts\python.exe scripts/ci_check.py
+
+# Scheduler semanal + prova inofensiva do caminho Windows Scheduler
+powershell -ExecutionPolicy Bypass -File scripts\install_weekly_task.ps1 -Verify
 ```
 
-Toda previsão é carimbada com `PredictionPoint` do core (matures_at = início
-+ 1h/2h30/4h por formato), registrada em `data/predictions.jsonl`
-(append-only, override por env) e emitida na telemetria (domínio `lol`).
+Previsões oficiais de evento usam horário explícito, são bloqueadas a partir de
+`scheduled_at` e percorrem PRE_EVENT → MATURED com resultado, acerto e Brier.
+O ledger `data/predictions.jsonl` é append-only e versionado para preservar a
+prova forward. Previsões ad hoc do CLI continuam separadas desse protocolo.
 
 ## Estrutura
 
@@ -61,7 +68,7 @@ src/
   data/riot_provider.py     # stub (Riot API vs Oracle's Elixir — decisão da Fase 1)
 data/teams_lol.json         # 30 times Tier 1 (LCK 10, LPL 10, LEC 6, LCS 4)
 scripts/ci_check.py         # 3 barreiras: pytest, .ps1 ASCII, parse+smoke
-tests/                      # 25 testes (modelo, serving, config, core, higiene)
+tests/                      # suíte estrita: modelo, serving, lifecycle, refresh e higiene
 vendor/predictor_core/      # v1.3.1 via sync_core (NÃO editar à mão)
 ```
 
@@ -70,6 +77,6 @@ vendor/predictor_core/      # v1.3.1 via sync_core (NÃO editar à mão)
 | Fase | Escopo | Status |
 |---|---|---|
 | 0 | Esqueleto: estrutura, vendor, Elo + kills, serving, CI | ✅ |
-| 1 | Histórico LCK/LPL/LEC/LCS (Oracle's Elixir) + backtest walk-forward | ⏳ prompt separado |
-| 2 | Governança: harness + TrialRegistry + GO/NO-GO (padrão da plataforma) | ⏳ |
-| 3 | Operação: odds, bet_log, settle | ⏳ (só após GO) |
+| 1 | Histórico + backtest walk-forward H1 | ✅ |
+| 2 | Governança, lifecycle e refresh observável | ✅; refresh natural de 20/07 ainda será observado |
+| 3 | Odds/shadow econômico | Não autorizado |

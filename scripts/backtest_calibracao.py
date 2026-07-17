@@ -68,7 +68,10 @@ def main():
         print(f"trial {nome} pré-registrada")
 
     conn = db.connect(str(ROOT / cfg["database"]), read_only=True)
-    r = run_prequential(cfg, conn)
+    try:
+        r = run_prequential(cfg, conn)
+    finally:
+        conn.close()
     outs = r["outs"]
     raw = [p[0] for p in r["probs_m"]]
     cal = calibrated_stream(r["probs_m"], outs)

@@ -53,7 +53,8 @@ def _team_metadata(canonical: str, db_path: Path, snapshot: datetime) -> dict[st
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
         games, last, league = conn.execute(
-            "SELECT count(*), max(date), max(league) FROM games WHERE team_a=? OR team_b=?",
+            "SELECT count(*), max(date), max(league) FROM games "
+            "WHERE team_a=? COLLATE NOCASE OR team_b=? COLLATE NOCASE",
             (canonical, canonical),
         ).fetchone()
     finally:
@@ -62,7 +63,12 @@ def _team_metadata(canonical: str, db_path: Path, snapshot: datetime) -> dict[st
     age = (snapshot - last_at).days if last_at else None
     freshness = "NOT_AVAILABLE" if not last else ("FRESH" if age <= 14 else "ACCEPTABLE" if age <= 45 else "STALE")
     quality = "NOT_AVAILABLE" if not last else ("INSUFFICIENT_HISTORY" if games < 10 else freshness)
-    return {"region": seeded.get("region") or league or "NOT_AVAILABLE", "games": games, "last_observed_at": last, "rating_age_days": age, "freshness": freshness, "rating_quality": quality, "season_transition": "NOT_AVAILABLE", "roster_transition": "NOT_AVAILABLE"}
+    return {"region": seeded.get("region") or "NOT_AVAILABLE",
+            "last_observed_competition": league or "NOT_AVAILABLE",
+            "games": games, "last_observed_at": last, "rating_age_days": age,
+            "freshness": freshness, "rating_quality": quality,
+            "season_transition": "NOT_AVAILABLE",
+            "roster_transition": "NOT_AVAILABLE"}
 
 
 def resolve(display: str, aliases: dict[str, Any], model: EloModel, db_path: Path, snapshot: datetime) -> dict[str, Any]:
@@ -89,7 +95,8 @@ def _band(probability: float) -> str:
 def build(fixture: dict[str, Any], ratings_path: Path | None = None, db_path: Path | None = None) -> dict[str, Any]:
     clear_caches()
     snapshot = datetime.fromisoformat(fixture["snapshot_at"])
-    ratings_path = ratings_path or ROOT / "data" / "ratings.json"
+    ratings_path = ratings_path or ROOT / fixture.get(
+        "ratings_path", "data/ratings.json")
     db_path = db_path or ROOT / "data" / "lol.db"
     model = EloModel(ratings_file=ratings_path)
     if model.platt is not None:
@@ -119,16 +126,28 @@ def build(fixture: dict[str, Any], ratings_path: Path | None = None, db_path: Pa
         elif "ACCEPTABLE" in qualities:
             limitations.append("one or both teams have acceptable but aging game evidence")
         predictions.append({"team_a": team_a, "team_b": team_b, "canonical_a": result["team_a"], "canonical_b": result["team_b"], "status": "PREDICTED", "format": fixture["format"], "scheduled_at": scheduled_at, "matures_at": matures_at, "rating_a": result["elo_a"], "rating_b": result["elo_b"], "rating_difference_a_minus_b": round(result["elo_a"] - result["elo_b"], 1), "probability_a": result["prob_team_a"], "probability_b": result["prob_team_b"], "favorite": favorite, "confidence_band": _band(result["prob_team_a"]), "freshness_a": a["rating_quality"], "freshness_b": b["rating_quality"], "alias_a": a["status"], "alias_b": b["status"], "limitations": limitations})
-    digest = hashlib.sha256(ratings_path.read_bytes()).hexdigest()
-    return {"event": fixture["event"], "stage": fixture["stage"], "scheduled_date": fixture["scheduled_date"], "format": fixture["format"], "snapshot_at": fixture["snapshot_at"], "model": "elo-h1-map-win-probability; Platt disabled", "ratings_sha256": digest, "ratings_mtime_utc": datetime.fromtimestamp(ratings_path.stat().st_mtime, timezone.utc).isoformat(timespec="seconds"), "resolutions": list(resolved.values()), "predictions": predictions}
+    artifact_digest = hashlib.sha256(ratings_path.read_bytes()).hexdigest()
+    digest = fixture.get("source_ratings_sha256", artifact_digest)
+    ratings_mtime = fixture.get(
+        "source_ratings_mtime_utc",
+        datetime.fromtimestamp(ratings_path.stat().st_mtime, timezone.utc).isoformat(
+            timespec="seconds"))
+    return {"event": fixture["event"], "stage": fixture["stage"], "scheduled_date": fixture["scheduled_date"], "format": fixture["format"], "snapshot_at": fixture["snapshot_at"], "model": "elo-h1-map-win-probability; Platt disabled", "ratings_sha256": digest, "ratings_artifact_sha256": artifact_digest, "ratings_mtime_utc": ratings_mtime, "resolutions": list(resolved.values()), "predictions": predictions}
 
 
 def register_pre_event(report: dict[str, Any], ledger_path: Path, now: datetime | None = None) -> dict[str, int]:
     """Append idempotent PRE_EVENT records for scheduled, resolvable matches."""
     emitted_at = now or datetime.now(timezone.utc)
     store = JsonlStore(ledger_path)
-    existing = {row.get("prediction_id") for row in store if row.get("prediction_id")}
+    ledger = list(store)
+    existing = {row.get("prediction_id") for row in ledger if row.get("prediction_id")}
+    existing_matches = {
+        (row.get("event"), row.get("stage"), row.get("scheduled_at"),
+         row.get("team_a"), row.get("team_b"))
+        for row in ledger if row.get("lifecycle_status") == "PRE_EVENT"
+    }
     registered = skipped = 0
+    pending = []
     for prediction in report["predictions"]:
         if prediction["status"] != "PREDICTED" or not prediction.get("scheduled_at"):
             continue
@@ -136,9 +155,20 @@ def register_pre_event(report: dict[str, Any], ledger_path: Path, now: datetime 
                         prediction["canonical_a"], prediction["canonical_b"],
                         report["model"], report["ratings_sha256"]))
         prediction_id = hashlib.sha256(key.encode("utf-8")).hexdigest()
-        if prediction_id in existing:
+        match_key = (report["event"], report["stage"],
+                     prediction["scheduled_at"], prediction["canonical_a"],
+                     prediction["canonical_b"])
+        if prediction_id in existing or match_key in existing_matches:
             skipped += 1
             continue
+        scheduled_at = datetime.fromisoformat(prediction["scheduled_at"])
+        if emitted_at >= scheduled_at:
+            raise ValueError(
+                f"PRE_EVENT blocked at/after scheduled_at for "
+                f"{prediction['canonical_a']} vs {prediction['canonical_b']}")
+        pending.append((prediction, prediction_id))
+
+    for prediction, prediction_id in pending:
         matures_at = datetime.fromisoformat(prediction["matures_at"])
         point = PredictionPoint(
             predicted_at=emitted_at,
@@ -178,13 +208,22 @@ def mature_results(ledger_path: Path, results: dict[str, Any], now: datetime | N
                   if row.get("lifecycle_status") == "PRE_EVENT"}
     matured = {row["prediction_id"] for row in records
                if row.get("lifecycle_status") == "MATURED"}
-    by_teams = {(row["team_a"], row["team_b"]): row for row in pre_events.values()}
+    by_teams: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for row in pre_events.values():
+        by_teams.setdefault((row["team_a"], row["team_b"]), []).append(row)
     registered = already_present = not_ready = 0
     for result in results.get("results", []):
         key = (result.get("team_a"), result.get("team_b"))
-        pre_event = by_teams.get(key)
-        if pre_event is None:
+        requested_id = result.get("prediction_id")
+        candidates = ([pre_events[requested_id]] if requested_id in pre_events
+                      else list(by_teams.get(key, [])))
+        if not candidates:
             raise ValueError(f"no PRE_EVENT record for {key[0]} vs {key[1]}")
+        if len(candidates) != 1:
+            raise ValueError(
+                f"ambiguous PRE_EVENT records for {key[0]} vs {key[1]}; "
+                "provide prediction_id")
+        pre_event = candidates[0]
         prediction_id = pre_event["prediction_id"]
         if prediction_id in matured:
             already_present += 1
@@ -195,6 +234,14 @@ def mature_results(ledger_path: Path, results: dict[str, Any], now: datetime | N
         winner = result.get("winner")
         if winner not in key:
             raise ValueError(f"winner must be one of the PRE_EVENT teams for {key[0]} vs {key[1]}")
+        score = result.get("score")
+        wins = {"bo1": 1, "bo3": 2, "bo5": 3}[pre_event["format"]]
+        valid_scores = ({f"{wins}-{loss}" for loss in range(wins)}
+                        if winner == key[0]
+                        else {f"{loss}-{wins}" for loss in range(wins)})
+        if score not in valid_scores:
+            raise ValueError(
+                f"invalid {pre_event['format']} score for winner {winner}: {score!r}")
         outcome_a = 1.0 if winner == key[0] else 0.0
         probability_a = float(pre_event["value"]["probability_a"])
         brier = round(2.0 * (probability_a - outcome_a) ** 2, 8)
@@ -203,7 +250,7 @@ def mature_results(ledger_path: Path, results: dict[str, Any], now: datetime | N
             **pre_event,
             "lifecycle_status": "MATURED",
             "matured_at": observed_at.isoformat(timespec="seconds"),
-            "result": {"winner": winner, "score": result.get("score")},
+            "result": {"winner": winner, "score": score},
             "brier": brier,
             "correct": correct,
         })

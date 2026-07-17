@@ -73,14 +73,20 @@ def resolve_team(name: str) -> dict:
     for t in teams:
         if t["name"].lower() == low:
             return t
-    hits = [t for t in teams if low in t["name"].lower()]
-    if len(hits) == 1:
-        return hits[0]
-
     rating_names = load_rating_names()
     for n in rating_names:
         if n.lower() == low:
-            return {"name": n}
+            canonical = next(
+                (t for t in teams if t["name"].casefold() == n.casefold()),
+                None,
+            )
+            return canonical or {"name": n}
+
+    # Exact lived names must win before substring matching. Otherwise LOUD
+    # resolves to the seeded team Cloud9 merely because it is a substring.
+    hits = [t for t in teams if low in t["name"].lower()]
+    if len(hits) == 1:
+        return hits[0]
     rhits = [n for n in rating_names if low in n.lower()]
     if len(rhits) == 1:
         return {"name": rhits[0]}

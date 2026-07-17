@@ -21,9 +21,13 @@ def _db():
 
 
 def test_replay_is_frozen_during_tournament():
-    report = replay_tournament.replay(_db(), {
-        "league": "TEST", "start": "2025-02-01 00:00:00", "end": "2025-02-02 00:00:00",
-    })
+    conn = _db()
+    try:
+        report = replay_tournament.replay(conn, {
+            "league": "TEST", "start": "2025-02-01 00:00:00", "end": "2025-02-02 00:00:00",
+        })
+    finally:
+        conn.close()
     first, second = report["forecasts"]
     assert report["maps"] == 2
     assert first["elo_a"] == second["elo_b"]

@@ -9,17 +9,14 @@ Rating por MAPA; série (BO1/BO3/BO5) pela combinatória exata com mapas
 i.i.d. — simplificação declarada da Fase 0 (draft, early game e patch são
 extensões da Fase 1+). K por formato: BO1=32, BO3=40, BO5=48.
 
-Totais de abates: total por mapa ≈ Normal(kpg_a + kpg_b, kills_std) — mesma
-lógica do nba-predictor (TCL de muitos eventos de abate). Fase 0 usa a média
-da liga (config model.league_avg_total_kills) até `data/team_stats.json`
-materializar médias reais por time.
+Totais de abates: H2 por time foi refutada. O caminho legado usa somente o
+baseline agregado declarado no config e nunca consome stats por time.
 """
 import json
 from pathlib import Path
 from statistics import NormalDist
 
-from .calibration import PlattCalibrator
-from .config import ROOT, load_config, load_team_stats, load_teams, resolve_team
+from .config import ROOT, load_config, load_teams, resolve_team
 
 K_FACTORS = {"bo1": 32, "bo3": 40, "bo5": 48}
 # duração típica de parede de relógio por formato (matures_at do serving)
@@ -55,15 +52,18 @@ class EloModel:
 
     def __init__(self, ratings_file: Path | str | None = None):
         cfg = load_config()
-        self.ratings = {t["name"]: float(t["initial_elo"]) for t in load_teams()}
+        teams = load_teams()
+        self.ratings = {t["name"]: float(t["initial_elo"]) for t in teams}
+        seeded_names = {t["name"].casefold(): t["name"] for t in teams}
         self.path = Path(ratings_file) if ratings_file else (
             ROOT / cfg.get("ratings_file", "data/ratings.json"))
         if self.path.exists():
-            self.ratings.update(json.loads(self.path.read_text(encoding="utf-8")))
-        # Platt no nível do MAPA (tentativa N+1): materializado por
-        # scripts/backtest_calibracao.py; ausente → identidade
-        self.platt = PlattCalibrator.load(
-            ROOT / "data" / "calibration_platt.json")
+            lived = json.loads(self.path.read_text(encoding="utf-8"))
+            for name, value in lived.items():
+                canonical = seeded_names.get(name.casefold(), name)
+                self.ratings[canonical] = float(value)
+        # Platt H3 foi refutada: serving canônico permanece Elo cru.
+        self.platt = None
 
     def _elo(self, name: str) -> tuple[str, float]:
         official = resolve_team(name)["name"]
@@ -104,9 +104,8 @@ class EloModel:
                             line: float | None = None) -> dict:
         """Total de abates de UM MAPA ≈ Normal(kpg_a + kpg_b, kills_std).
 
-        Fase 0: sem histórico, cada time contribui metade da média da liga
-        (config); `data/team_stats.json` ({nome: {kills_per_game}}) passa a
-        diferenciar quando a Fase 1 materializar."""
+        Cada time contribui metade do baseline agregado. Stats por time são
+        deliberadamente ignoradas porque H2 foi refutada."""
         cfg = load_config()
         mc = cfg["model"]
         line = float(cfg["default_kills_line"]) if line is None else float(line)
@@ -114,9 +113,7 @@ class EloModel:
         std = float(mc["kills_std"])
         a = resolve_team(team_a)["name"]
         b = resolve_team(team_b)["name"]
-        stats = load_team_stats()
-        kpg_a = float(stats.get(a, {}).get("kills_per_game", half))
-        kpg_b = float(stats.get(b, {}).get("kills_per_game", half))
+        kpg_a = kpg_b = half
         total = kpg_a + kpg_b
         p_over = 1.0 - NormalDist(mu=total, sigma=std).cdf(line)
         return {"team_a": a, "team_b": b, "line": line,

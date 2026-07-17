@@ -1,6 +1,6 @@
 # Dados de runtime — regras ANCORADAS (licao do wc/cripto: 'data/'
 # nao-ancorado engolia o pacote vendor/predictor_core/data/)
-/data/predictions.jsonl
+# predictions.jsonl e atestados forward são exceções versionadas.
 /data/bets.jsonl
 /data/bankroll.jsonl
 /data/ratings.json
