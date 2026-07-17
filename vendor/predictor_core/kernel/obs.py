@@ -84,8 +84,21 @@ def emit_event(domain: str, event: str, *, run_id: str | None = None,
 
 
 def read_events(path) -> list[dict]:
-    """Lê um JSONL de eventos (base do futuro painel). Linhas vazias ignoradas."""
+    """Lê um JSONL de eventos (base do futuro painel). Linhas vazias ignoradas.
+
+    Linha corrompida (ex.: truncada por crash no meio da escrita) levanta
+    ValueError com o caminho e o número da linha — mesma filosofia de
+    kernel.jsonl_store.JsonlStore: falha barulhenta com contexto acionável,
+    não um JSONDecodeError cru sem dizer onde procurar."""
     p = Path(path)
     if not p.exists():
         return []
-    return [json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    out = []
+    for i, ln in enumerate(p.read_text(encoding="utf-8").splitlines(), start=1):
+        if not ln.strip():
+            continue
+        try:
+            out.append(json.loads(ln))
+        except ValueError as exc:
+            raise ValueError(f"{p}:{i}: linha JSONL corrompida — {exc}") from exc
+    return out
