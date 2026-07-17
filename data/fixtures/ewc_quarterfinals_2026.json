@@ -8,9 +8,9 @@
     "AG.AL": {"canonical": "Anyone's Legend", "source": "EWC 2026 public team-branding reference", "confidence": "VERIFIED_ALIAS"}
   },
   "matches": [
-    ["Hanwha Life Esports", "T1"],
-    ["AG.AL", "Karmine Corp"],
-    ["Gen.G", "JD Gaming"],
-    ["Bilibili Gaming", "Dplus Kia"]
+    {"teams": ["Hanwha Life Esports", "T1"], "scheduled_at": "2026-07-17T08:00:00-03:00"},
+    {"teams": ["Gen.G", "JD Gaming"], "scheduled_at": "2026-07-17T08:00:00-03:00"},
+    {"teams": ["AG.AL", "Karmine Corp"], "scheduled_at": "2026-07-17T10:30:00-03:00"},
+    {"teams": ["Bilibili Gaming", "Dplus Kia"], "scheduled_at": "2026-07-17T10:30:00-03:00"}
   ]
 }

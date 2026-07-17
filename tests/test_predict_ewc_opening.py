@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -71,3 +72,51 @@ def test_output_is_explicit_and_does_not_touch_data(tmp_path: Path) -> None:
     output = tmp_path / "report.json"
     assert mod.main(["--json", "--output", str(output)]) == 0
     assert json.loads(output.read_text(encoding="utf-8"))["format"] == "bo1"
+
+
+def test_scheduled_fixture_has_maturation_and_acceptable_warning() -> None:
+    mod = load_module()
+    scheduled = fixture([["Gen.G", "JD Gaming"]])
+    scheduled["matches"] = [{"teams": ["Gen.G", "JD Gaming"],
+                              "scheduled_at": "2026-07-17T08:00:00-03:00"}]
+    row = mod.build(scheduled)["predictions"][0]
+    assert row["matures_at"] == "2026-07-17T09:00:00-03:00"
+    assert any("acceptable but aging" in item for item in row["limitations"])
+
+
+def test_pre_event_registration_is_idempotent(tmp_path: Path) -> None:
+    mod = load_module()
+    scheduled = fixture([["T1", "Gen.G"]])
+    scheduled["matches"] = [{"teams": ["T1", "Gen.G"],
+                              "scheduled_at": "2026-07-17T08:00:00-03:00"}]
+    report = mod.build(scheduled)
+    ledger = tmp_path / "predictions.jsonl"
+    now = datetime(2026, 7, 16, 20, 0, tzinfo=timezone.utc)
+    assert mod.register_pre_event(report, ledger, now) == {"registered": 1, "already_present": 0}
+    assert mod.register_pre_event(report, ledger, now) == {"registered": 0, "already_present": 1}
+    record = json.loads(ledger.read_text(encoding="utf-8").splitlines()[0])
+    assert record["lifecycle_status"] == "PRE_EVENT" and record["result"] is None
+
+
+def test_maturation_waits_then_records_result_brier_and_correct(tmp_path: Path) -> None:
+    mod = load_module()
+    scheduled = fixture([["T1", "Gen.G"]])
+    scheduled["matches"] = [{"teams": ["T1", "Gen.G"],
+                              "scheduled_at": "2026-07-17T08:00:00-03:00"}]
+    ledger = tmp_path / "predictions.jsonl"
+    mod.register_pre_event(mod.build(scheduled), ledger,
+                           datetime(2026, 7, 16, 20, 0, tzinfo=timezone.utc))
+    results = {"results": [{"team_a": "T1", "team_b": "Gen.G",
+                             "winner": "Gen.G", "score": "0-1"}]}
+    before = datetime(2026, 7, 17, 11, 30, tzinfo=timezone.utc)
+    assert mod.mature_results(ledger, results, before)["not_ready"] == 1
+    after = datetime(2026, 7, 17, 12, 1, tzinfo=timezone.utc)
+    assert mod.mature_results(ledger, results, after) == {
+        "registered": 1, "already_present": 0, "not_ready": 0}
+    assert mod.mature_results(ledger, results, after) == {
+        "registered": 0, "already_present": 1, "not_ready": 0}
+    matured = json.loads(ledger.read_text(encoding="utf-8").splitlines()[-1])
+    assert matured["lifecycle_status"] == "MATURED"
+    assert matured["result"] == {"winner": "Gen.G", "score": "0-1"}
+    assert matured["correct"] is False
+    assert matured["brier"] == round(2 * matured["value"]["probability_a"] ** 2, 8)

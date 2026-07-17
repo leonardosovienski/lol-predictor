@@ -8,22 +8,44 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sqlite3
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from src.config import clear_caches, load_teams, resolve_team  # noqa: E402
-from src.model import EloModel  # noqa: E402
+from src.model import EloModel, FORMAT_HOURS  # noqa: E402
+from predictor_core.data.contracts import PredictionPoint  # noqa: E402
+from predictor_core.kernel.jsonl_store import JsonlStore  # noqa: E402
 
 DEFAULT_FIXTURE = ROOT / "data" / "fixtures" / "ewc_opening_2026.json"
 
 
 def _load(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _match_entries(fixture: dict[str, Any]) -> list[dict[str, Any]]:
+    entries = []
+    for raw in fixture["matches"]:
+        if isinstance(raw, dict):
+            teams = raw.get("teams")
+            scheduled_at = raw.get("scheduled_at")
+        else:
+            teams = raw
+            scheduled_at = None
+        if not isinstance(teams, list) or len(teams) != 2 or not all(isinstance(team, str) for team in teams):
+            raise ValueError("each fixture match must contain exactly two team names")
+        if scheduled_at is not None:
+            scheduled = datetime.fromisoformat(scheduled_at)
+            if scheduled.tzinfo is None:
+                raise ValueError("scheduled_at must be timezone-aware")
+        entries.append({"team_a": teams[0], "team_b": teams[1], "scheduled_at": scheduled_at})
+    return entries
 
 
 def _team_metadata(canonical: str, db_path: Path, snapshot: datetime) -> dict[str, Any]:
@@ -73,18 +95,122 @@ def build(fixture: dict[str, Any], ratings_path: Path | None = None, db_path: Pa
     if model.platt is not None:
         raise RuntimeError("canonical snapshot has Platt enabled; this H1-only run is blocked")
     aliases = fixture.get("aliases", {})
-    resolved = {name: resolve(name, aliases, model, db_path, snapshot) for match in fixture["matches"] for name in match}
+    entries = _match_entries(fixture)
+    resolved = {name: resolve(name, aliases, model, db_path, snapshot)
+                for entry in entries for name in (entry["team_a"], entry["team_b"])}
     predictions = []
-    for team_a, team_b in fixture["matches"]:
+    for entry in entries:
+        team_a, team_b = entry["team_a"], entry["team_b"]
         a, b = resolved[team_a], resolved[team_b]
         if a["status"] == "MISSING" or b["status"] == "MISSING":
             predictions.append({"team_a": team_a, "team_b": team_b, "status": "BLOCKED", "reason": "identity or rating unavailable"})
             continue
         result = model.predict_match(a["canonical"], b["canonical"], fixture["format"])
         favorite = result["team_a"] if result["prob_team_a"] >= .5 else result["team_b"]
-        predictions.append({"team_a": team_a, "team_b": team_b, "canonical_a": result["team_a"], "canonical_b": result["team_b"], "status": "PREDICTED", "format": fixture["format"], "rating_a": result["elo_a"], "rating_b": result["elo_b"], "rating_difference_a_minus_b": round(result["elo_a"] - result["elo_b"], 1), "probability_a": result["prob_team_a"], "probability_b": result["prob_team_b"], "favorite": favorite, "confidence_band": _band(result["prob_team_a"]), "freshness_a": a["rating_quality"], "freshness_b": b["rating_quality"], "alias_a": a["status"], "alias_b": b["status"], "limitations": ["Elo H1 only; no Platt, odds, kills, draft or manual regional adjustment.", *(["one or both teams have stale/limited game evidence"] if a["rating_quality"] in {"STALE", "INSUFFICIENT_HISTORY"} or b["rating_quality"] in {"STALE", "INSUFFICIENT_HISTORY"} else [])]})
+        scheduled_at = entry["scheduled_at"]
+        matures_at = None
+        if scheduled_at:
+            scheduled = datetime.fromisoformat(scheduled_at)
+            matures_at = (scheduled + timedelta(hours=FORMAT_HOURS[fixture["format"]])).isoformat(timespec="seconds")
+        qualities = {a["rating_quality"], b["rating_quality"]}
+        limitations = ["Elo H1 only; no Platt, odds, kills, patch, side, draft, roster or manual regional adjustment."]
+        if qualities & {"STALE", "INSUFFICIENT_HISTORY", "NOT_AVAILABLE"}:
+            limitations.append("one or both teams have stale/limited game evidence")
+        elif "ACCEPTABLE" in qualities:
+            limitations.append("one or both teams have acceptable but aging game evidence")
+        predictions.append({"team_a": team_a, "team_b": team_b, "canonical_a": result["team_a"], "canonical_b": result["team_b"], "status": "PREDICTED", "format": fixture["format"], "scheduled_at": scheduled_at, "matures_at": matures_at, "rating_a": result["elo_a"], "rating_b": result["elo_b"], "rating_difference_a_minus_b": round(result["elo_a"] - result["elo_b"], 1), "probability_a": result["prob_team_a"], "probability_b": result["prob_team_b"], "favorite": favorite, "confidence_band": _band(result["prob_team_a"]), "freshness_a": a["rating_quality"], "freshness_b": b["rating_quality"], "alias_a": a["status"], "alias_b": b["status"], "limitations": limitations})
     digest = hashlib.sha256(ratings_path.read_bytes()).hexdigest()
     return {"event": fixture["event"], "stage": fixture["stage"], "scheduled_date": fixture["scheduled_date"], "format": fixture["format"], "snapshot_at": fixture["snapshot_at"], "model": "elo-h1-map-win-probability; Platt disabled", "ratings_sha256": digest, "ratings_mtime_utc": datetime.fromtimestamp(ratings_path.stat().st_mtime, timezone.utc).isoformat(timespec="seconds"), "resolutions": list(resolved.values()), "predictions": predictions}
+
+
+def register_pre_event(report: dict[str, Any], ledger_path: Path, now: datetime | None = None) -> dict[str, int]:
+    """Append idempotent PRE_EVENT records for scheduled, resolvable matches."""
+    emitted_at = now or datetime.now(timezone.utc)
+    store = JsonlStore(ledger_path)
+    existing = {row.get("prediction_id") for row in store if row.get("prediction_id")}
+    registered = skipped = 0
+    for prediction in report["predictions"]:
+        if prediction["status"] != "PREDICTED" or not prediction.get("scheduled_at"):
+            continue
+        key = "|".join((report["event"], report["stage"], prediction["scheduled_at"],
+                        prediction["canonical_a"], prediction["canonical_b"],
+                        report["model"], report["ratings_sha256"]))
+        prediction_id = hashlib.sha256(key.encode("utf-8")).hexdigest()
+        if prediction_id in existing:
+            skipped += 1
+            continue
+        matures_at = datetime.fromisoformat(prediction["matures_at"])
+        point = PredictionPoint(
+            predicted_at=emitted_at,
+            matures_at=matures_at,
+            value={"probability_a": prediction["probability_a"],
+                   "probability_b": prediction["probability_b"],
+                   "favorite": prediction["favorite"]},
+            metadata={"event": report["event"], "stage": report["stage"],
+                      "team_a": prediction["canonical_a"],
+                      "team_b": prediction["canonical_b"],
+                      "format": prediction["format"], "model": report["model"]})
+        store.append({
+            "schema_version": "lol-prediction-point/1.0",
+            "prediction_id": prediction_id,
+            "lifecycle_status": "PRE_EVENT",
+            "predicted_at": point.predicted_at.isoformat(timespec="seconds"),
+            "scheduled_at": prediction["scheduled_at"],
+            "matures_at": point.matures_at.isoformat(timespec="seconds"),
+            "event": report["event"], "stage": report["stage"],
+            "team_a": prediction["canonical_a"], "team_b": prediction["canonical_b"],
+            "format": prediction["format"], "model": report["model"],
+            "ratings_sha256": report["ratings_sha256"],
+            "value": point.value, "result": None, "brier": None, "correct": None,
+            "limitations": prediction["limitations"],
+        })
+        existing.add(prediction_id)
+        registered += 1
+    return {"registered": registered, "already_present": skipped}
+
+
+def mature_results(ledger_path: Path, results: dict[str, Any], now: datetime | None = None) -> dict[str, int]:
+    """Append idempotent MATURED records after the declared prediction horizon."""
+    observed_at = now or datetime.now(timezone.utc)
+    store = JsonlStore(ledger_path)
+    records = list(store)
+    pre_events = {row["prediction_id"]: row for row in records
+                  if row.get("lifecycle_status") == "PRE_EVENT"}
+    matured = {row["prediction_id"] for row in records
+               if row.get("lifecycle_status") == "MATURED"}
+    by_teams = {(row["team_a"], row["team_b"]): row for row in pre_events.values()}
+    registered = already_present = not_ready = 0
+    for result in results.get("results", []):
+        key = (result.get("team_a"), result.get("team_b"))
+        pre_event = by_teams.get(key)
+        if pre_event is None:
+            raise ValueError(f"no PRE_EVENT record for {key[0]} vs {key[1]}")
+        prediction_id = pre_event["prediction_id"]
+        if prediction_id in matured:
+            already_present += 1
+            continue
+        if observed_at < datetime.fromisoformat(pre_event["matures_at"]):
+            not_ready += 1
+            continue
+        winner = result.get("winner")
+        if winner not in key:
+            raise ValueError(f"winner must be one of the PRE_EVENT teams for {key[0]} vs {key[1]}")
+        outcome_a = 1.0 if winner == key[0] else 0.0
+        probability_a = float(pre_event["value"]["probability_a"])
+        brier = round(2.0 * (probability_a - outcome_a) ** 2, 8)
+        correct = pre_event["value"]["favorite"] == winner
+        store.append({
+            **pre_event,
+            "lifecycle_status": "MATURED",
+            "matured_at": observed_at.isoformat(timespec="seconds"),
+            "result": {"winner": winner, "score": result.get("score")},
+            "brier": brier,
+            "correct": correct,
+        })
+        matured.add(prediction_id)
+        registered += 1
+    return {"registered": registered, "already_present": already_present,
+            "not_ready": not_ready}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -93,12 +219,30 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--output", type=Path, help="Write structured JSON outside the data snapshot.")
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument("--register-ledger", action="store_true",
+                        help="Explicitly append scheduled PRE_EVENT records to the prediction ledger")
+    parser.add_argument("--ledger", type=Path, default=Path(os.environ.get(
+                        "PREDICTIONS_LOG_PATH", ROOT / "data" / "predictions.jsonl")))
+    parser.add_argument("--mature-results", type=Path,
+                        help="Append MATURED records from a results JSON after matures_at")
     args = parser.parse_args(argv)
     try:
         report = build(_load(args.fixture))
     except (OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
         print(str(exc), file=sys.stderr)
         return 2
+    if args.register_ledger:
+        try:
+            report["registration"] = register_pre_event(report, args.ledger)
+        except (OSError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+    if args.mature_results:
+        try:
+            report["maturation"] = mature_results(args.ledger, _load(args.mature_results))
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
     encoded = json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

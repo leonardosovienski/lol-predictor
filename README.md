@@ -62,7 +62,7 @@ src/
 data/teams_lol.json         # 30 times Tier 1 (LCK 10, LPL 10, LEC 6, LCS 4)
 scripts/ci_check.py         # 3 barreiras: pytest, .ps1 ASCII, parse+smoke
 tests/                      # 25 testes (modelo, serving, config, core, higiene)
-vendor/predictor_core/      # v1.1.0 via sync_core (NÃO editar à mão)
+vendor/predictor_core/      # v1.3.1 via sync_core (NÃO editar à mão)
 ```
 
 ## Roadmap

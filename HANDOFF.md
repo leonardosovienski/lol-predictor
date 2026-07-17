@@ -25,38 +25,50 @@
 > | A | 5 | 3 | AG.AL 1–0 G2; Dplus 2–0 G2 |
 > | B | 5 | 5 | — |
 > | C | 5 | 4 | GAM 2–1 Movistar KOI |
-> | D | 2 | 1 | JD Gaming 1–0 LYON |
-> | **Total** | **17** | **13 (76,5%)** | **4** |
+> | D | 5 | 3 | JD Gaming 1–0 LYON; MIBR.LØS 2–0 LYON |
+> | **Total** | **20** | **15 (75,0%)** | **5** |
 >
-> As probabilidades dos favoritos nos 17 confrontos válidos implicavam 12,80
-> acertos esperados (75,3%). Realizado: 13. Brier binário de séries: 0,1710
-> (0,3419 na convenção multiclasse usada pelo projeto). A boa aderência desta
+> As probabilidades dos favoritos nos 20 confrontos implicavam 15,12 acertos
+> esperados (75,6%). Realizado: 15. Brier multiclasse de séries: 0,3666.
+> A boa aderência desta
 > rodada não deve ser transformada em edge financeiro nem em validação forward.
 >
-> **Bloqueios explícitos (VOID, não acerto/erro):** HLE 1–0 MIBR.LØS,
-> MIBR.LØS 2–0 LYON e MIBR.LØS 0–2 JD Gaming. O alias de branding
-> `MIBR.LØS → LØS` está documentado, mas `LØS` não existe no snapshot de
-> ratings canônico. Não foi aplicado seed 1400 ou qualquer ajuste manual. O
-> refresh deve resolver a identidade e materializar rating antes de servir
-> outra previsão desse time.
+> **Correção de identidade (2026-07-16):** o snapshot hashado já contém
+> `LØS = 1506,9`. A leitura anterior que marcou três partidas como VOID foi
+> causada por degradação de Unicode (`LØS → L?S`) em um comando de auditoria,
+> não por ausência de rating. Recalculadas sem seed manual: HLE 83,4% venceu
+> LØS; LYON 79,7% perdeu para LØS; JDG 69,0% venceu LØS.
 >
 > **Agenda restante da EWC (ainda aberta):**
 >
 > | Data | Fase/formato | Confronto | Situação |
 > |---|---|---|---|
 > | 17/07 | Quartas, MD3 | Hanwha Life Esports × T1 | previsão aberta: HLE 54,3% |
-> | 17/07 | Quartas, MD3 | AG.AL / Anyone's Legend × Karmine Corp | previsão aberta: KC 51,6% |
 > | 17/07 | Quartas, MD3 | Gen.G × JD Gaming | previsão aberta: Gen.G 80,8% |
+> | 17/07 | Quartas, MD3 | AG.AL / Anyone's Legend × Karmine Corp | previsão aberta: KC 51,6% |
 > | 17/07 | Quartas, MD3 | Bilibili Gaming × Dplus Kia | previsão aberta: BLG 93,7% |
 > | 18/07 | Semifinal 1 | vencedor de QF1 × vencedor de QF2 | pendente de participantes; não prever ainda |
 > | 18/07 | Semifinal 2 | vencedor de QF3 × vencedor de QF4 | pendente de participantes; não prever ainda |
 > | 19/07 | Disputa de 3º | perdedor de SF1 × perdedor de SF2 | pendente de participantes; não prever ainda |
 > | 19/07 | Final | vencedor de SF1 × vencedor de SF2 | pendente de participantes; não prever ainda |
 >
-> Horários exatos dos playoffs ainda não foram materializados no fixture local;
-> registrar em UTC antes da emissão de cada PredictionPoint. Após cada série,
+> Horários das quartas materializados no fixture com offset `-03:00`: HLE–T1
+> e Gen.G–JDG às 08:00; AG.AL–KC e BLG–Dplus às 10:30. PredictionPoints PRE_EVENT idempotentes foram
+> registrados no ledger com maturação ao fim da janela esperada da MD3. Após cada série,
 > fechar resultado, Brier, acerto, hashes e commit sem atualizar Elo dentro do
 > bracket curto.
+> O mesmo runner fecha o ciclo append-only com `--mature-results resultados.json`
+> somente depois de `matures_at`, criando MATURED idempotente com vencedor,
+> placar, Brier multiclasse e acerto. Hash do ledger após os quatro PRE_EVENT:
+> `93a866be57ddfbda7eb27a0ad80319875093b40506250d1d1be15ced69ecae72`.
+>
+> **Scheduler corrigido em 16/07:** a tarefa `lol-ratings-semanal` tinha a
+> última execução recusada pelo Windows (`0x800710E0`) antes de iniciar o
+> runner. A definição agora tem working directory explícito, permite bateria,
+> não interrompe ao trocar para bateria, usa `StartWhenAvailable` e limita a
+> execução a 3h. Instalação reproduzível em `scripts/install_weekly_task.ps1`.
+> Não houve disparo manual antes das quartas para não incorporar resultados
+> intra-EWC ao snapshot congelado. Próxima observação natural: 20/07 08:30 BRT.
 
 > ## 🧪 Replays Tier 1 congelados pré-evento (2026-07-16)
 >
@@ -84,7 +96,7 @@
 > na faixa 70–80%, mas a amostra por faixa/evento ainda é curta: registrar
 > como diagnóstico, **não** acoplar Platt nem qualquer ajuste novo.
 >
-> Ambos são amostras de torneio pequenas, úteis como diagnóstico e não como
+> Esses eventos são amostras de torneio pequenas, úteis como diagnóstico e não como
 > substituto do backtest prequential amplo (n=3.053). Não foram usados Platt,
 > kills, odds, patch, draft, lado, roster, ajustes regionais manuais ou shadow.
 
@@ -207,19 +219,17 @@
 > | Dplus KIA x AG.AL | 1540,0 | 1400,0* | 77,3% / 22,7% | Dplus KIA |
 > | Hanwha Life Esports x MIBR.LOS | 1787,3 | 1400,0* | 97,3% / 2,7% | Hanwha Life Esports |
 >
-> AG.AL e MIBR.LOS não têm nenhum registro nem em `teams_lol.json` nem em
-> `ratings.json` (o Oracle's Elixir da Fase 1 nunca os ingeriu).
-> `resolve_team` corretamente recusa esses dois com "time desconhecido" em
-> vez de inventar um seed silencioso — comportamento mantido de propósito,
-> não é bug; os números acima só existem porque foram pedidos explicitamente
-> fora do caminho oficial.
+> **Correção posterior:** este diagnóstico misturava dois problemas. AG.AL
+> precisava do alias para `Anyone's Legend`; MIBR.LOS precisava do alias para
+> `LØS`, que já existia no snapshot com Elo 1506,9. A recusa de LØS observada
+> no scratchpad veio de degradação de Unicode para `L?S`. Os números com seed
+> 1400 acima ficam preservados apenas como histórico de uma previsão inválida
+> fora do serving e não entram em nenhuma métrica.
 >
-> **Dado sujo achado no processo**: `data/ratings.json` tem `"Dplus KIA"`
+> **Dado sujo achado no processo (resolvido em 15/07)**: `data/ratings.json` tinha `"Dplus KIA"`
 > (1540,0) e `"Dplus Kia"` (1560,8) como duas entradas separadas — mesma
-> equipe, capitalização diferente, não deduplicada na ingestão da Fase 1.
-> Não corrigido ainda; vale investigar `scripts/atualiza_semanal.py`/pipeline
-> de ingest do Oracle's Elixir antes de usar esse time com frequência,
-> porque a previsão muda dependendo de qual grafia é passada.
+> equipe, capitalização diferente. A entrada congelada foi removida e a
+> grafia canônica `Dplus Kia` passou a resolver para o Elo vivido 1560,8.
 >
 > Formato usado nas duas tabelas: BO3 (`default_format` do config.yaml) —
 > Leo confirmou depois o formato real do EWC 2026: **Fase de Grupos =
@@ -327,7 +337,7 @@
 > **Projeto criado. Modelo Elo base implementado. Backtest e operação real
 > pendentes.**
 >
-> Sétimo consumidor do predictor_core (v1.1.0, vendor via `sync_core --write`).
+> Sétimo consumidor do predictor_core (v1.3.1, vendor via `sync_core --write`).
 > Python 3.13 em `.venv` (pandas, numpy, scipy, pydantic, httpx, pytest).
 >
 > Decisões da Fase 0:
