@@ -1,5 +1,19 @@
 # HANDOFF.md — lol-predictor
 
+> ## ADENDO ECOSSISTEMA (2026-07-18)
+>
+> Vendor de `predictor_core` byte-idêntico ao canônico, sincronizado em
+> `593dbc0`. Suíte: 100% verde. Auditoria hostil adicional 2026-07-18
+> (`resolve_team` — normalização de identidade): confirmado que
+> `resolve_team` já normaliza case/whitespace (`.strip().lower()`) antes de
+> comparar por nome exato — desenho mais robusto que o `RatingBook` do core
+> nesse aspecto (que deliberadamente não normaliza, ver
+> `predictor_core/HANDOFF.md`). `lifecycle_status` deste projeto é só um
+> campo string (sem vínculo criptográfico como o CS) — garantia mais fraca,
+> por isso o lifecycle continua não sendo um contrato comum do core
+> (`PENDENCIAS_ABERTAS.md` INC-1). Sem incidente de segurança próprio.
+> Documento canônico do ecossistema: `../ECOSYSTEM_HANDOFF.md`.
+>
 > ## Estado operacional fechado em 2026-07-16
 >
 > - Serving canônico: Elo H1 cru. Platt H3 e kills por time H2 permanecem
