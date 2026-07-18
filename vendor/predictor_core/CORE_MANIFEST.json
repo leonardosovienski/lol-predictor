@@ -5,7 +5,7 @@
     "contracts/points.py": "3a3a0641328f9fc4eee65ff11f720f73448b48369e5f228926f20b5ad25cc8c7",
     "contracts/registry.py": "be724cfae7982b9be7bd105955408f76f31778ea0febd1516beed46dfb42e17d",
     "data/__init__.py": "eed7ab53ead39e86ae94cb860cf27fbc9054a6213718dbdfadf69bc2c287b771",
-    "data/aggregation.py": "c7296f174963cf7b8c920c8fb3a4942aa8039581d4a4e49714f2a855cd4f94c8",
+    "data/aggregation.py": "5b499162586f91ca1129fb574dd92a762a4833a8048357dc1ad5775d95dd267b",
     "data/asof.py": "4d570c58e6fe1e0e7b16947ba74bb3534f48679c171cebb6ca623d122b875911",
     "data/circuit_breaker.py": "e6f167342a44bed5558a4f2458e0698780a226ac7d2c6c899e25881213aea6fe",
     "data/contracts.py": "81166be44d96317caee95afb1b823848e4fa97e38af83836193ce8a3ff60f662",
@@ -45,7 +45,7 @@
     "testing/synth.py": "f0b9d0b1ef862e5d7dd2220489bb57412d09810f74b6e00e18f5ddad93fa1e76",
     "VERSION": "b309cdd317cf2a142bbb37911132ccdeaf7901884421b841564112b205e4aee6"
   },
-  "aggregate": "a68c4c0decdb2e61",
-  "synced_at": "2026-07-18T01:09:38+00:00",
+  "aggregate": "2925078ff8a84f05",
+  "synced_at": "2026-07-18T19:18:32+00:00",
   "source_version": "1.3.1-ga-20260716"
 }

@@ -34,7 +34,18 @@ def _fuse_per_timestamp(series_by_source: list[list[MarketDataPoint]],
 
 
 def consensus_median(series_by_source: list[list[MarketDataPoint]]) -> list[MarketDataPoint]:
-    """Mediana ponto-a-ponto entre fontes (robusta a outlier de uma exchange)."""
+    """Mediana ponto-a-ponto entre fontes.
+
+    Correção de docstring (auditoria hostil 2026-07-18, achado documental —
+    nenhuma mudança de comportamento): "robusta a outlier de uma exchange"
+    só é verdade com 3+ fontes. Com exatamente 2, `statistics.median` é a
+    MÉDIA dos dois valores (mesma matemática de `consensus_mean` abaixo) —
+    uma fonte ruim ainda desloca o resultado pela metade da diferença, sem
+    nenhuma proteção real. A robustez a outlier de fato só aparece a partir
+    de 3 fontes, onde a mediana ignora o extremo isolado. Nenhuma chamada
+    real a esta função foi encontrada no pipeline ativo de nenhum consumidor
+    (grep em 2026-07-18); reavaliar esta nota antes de ativá-la em produção
+    com apenas 2 fontes configuradas."""
     return _fuse_per_timestamp(series_by_source, statistics.median, "consensus_median")
 
 
