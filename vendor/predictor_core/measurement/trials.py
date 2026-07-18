@@ -37,6 +37,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -95,6 +96,45 @@ def load_trials(path: Path | str | None = None) -> list[dict]:
     return parsed
 
 
+def _pid_alive(pid: int) -> bool:
+    """Best-effort: existe processo com este PID? Falha de leitura = "não sei",
+    trata como vivo (nunca reclama antecipadamente por incerteza). Mesmo
+    padrão de tools/operational_runner.py — duplicado aqui deliberadamente:
+    predictor_core não deve depender de tools/ (camada operacional), mesmo
+    para uma checagem pequena e estável como esta."""
+    if pid <= 0:
+        return True
+    if sys.platform == "win32":
+        import ctypes
+        handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return True
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+
+
+def _lock_owner_pid_dead(lock_path: Path) -> bool:
+    """True somente quando o conteúdo do lock é legível, tem um pid, e esse
+    pid está comprovadamente morto. Qualquer outra situação (ilegível, sem
+    pid, vivo) é False — a política de idade abaixo continua sendo o
+    fallback, nunca substituída."""
+    try:
+        content = json.loads(lock_path.read_text(encoding="ascii"))
+        pid = content.get("pid")
+    except (OSError, ValueError, AttributeError):
+        return False
+    if not isinstance(pid, int):
+        return False
+    return not _pid_alive(pid)
+
+
 def _acquire_trials_lock(p: Path, *, timeout: float = 10.0, poll: float = 0.05) -> Path:
     """Lock de arquivo (O_CREAT|O_EXCL) em torno da seção crítica read-modify-
     write de register_trial. Sem isto, dois processos podiam ler o mesmo
@@ -105,15 +145,30 @@ def _acquire_trials_lock(p: Path, *, timeout: float = 10.0, poll: float = 0.05) 
     N+1 do módulo existe para impedir. Advisory only (protege register_trial
     contra si mesmo em processos concorrentes, não contra edição manual do
     arquivo); locks mais velhos que `timeout` são considerados órfãos e
-    reclamados."""
+    reclamados.
+
+    Auditoria hostil 2026-07-17 (rodada predictor_core): a versão original só
+    reclamava por IDADE (timeout default de 10s) — curto demais para dados
+    científicos: um escritor legítimo mas lento (I/O de disco, pausa de GC)
+    podia ter o lock "roubado" por outro processo, reabrindo exatamente a
+    corrida que este lock existe para impedir. Agora o conteúdo do lock grava
+    o PID do dono, e um PID comprovadamente morto é reclamado IMEDIATAMENTE
+    (falha de leitura ou PID vivo caem no fallback por idade, inalterado)."""
     lock_path = p.with_suffix(p.suffix + ".lock")
     deadline = time.monotonic() + timeout
     while True:
         try:
-            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            os.write(fd, json.dumps({"pid": os.getpid()}, sort_keys=True).encode("ascii"))
             os.close(fd)
             return lock_path
         except FileExistsError:
+            if _lock_owner_pid_dead(lock_path):
+                try:
+                    lock_path.unlink()
+                except OSError:
+                    pass
+                continue
             try:
                 age = time.time() - lock_path.stat().st_mtime
             except OSError:
@@ -136,6 +191,24 @@ def _release_trials_lock(lock_path: Path) -> None:
         lock_path.unlink()
     except FileNotFoundError:
         pass
+
+
+def _find_non_finite_float(obj: object, path: str = "") -> str | None:
+    """Percorre dict/list recursivamente; retorna o caminho (estilo `[.foo][2]`)
+    do primeiro float NaN/Infinity encontrado, ou None se tudo for finito."""
+    if isinstance(obj, float) and not isinstance(obj, bool) and not math.isfinite(obj):
+        return path
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            found = _find_non_finite_float(value, f"{path}[{key!r}]")
+            if found is not None:
+                return found
+    elif isinstance(obj, (list, tuple)):
+        for i, value in enumerate(obj):
+            found = _find_non_finite_float(value, f"{path}[{i}]")
+            if found is not None:
+                return found
+    return None
 
 
 def validate_trials(trials: list[dict]) -> list[str]:
@@ -170,6 +243,17 @@ def validate_trials(trials: list[dict]) -> list[str]:
         if not isinstance(params, dict) or not params:
             errs.append(f"{tag}: params precisa ser dict NÃO-vazio (a configuração exata "
                         "é o que permite ao DSR distinguir tentativas)")
+        elif (bad_path := _find_non_finite_float(params)) is not None:
+            # Auditoria hostil 2026-07-17: sharpe já era validado com
+            # math.isfinite, mas um float NaN/Infinity dentro de params
+            # passava direto — json.dumps do Python grava esses valores como
+            # os literais não-padrão `NaN`/`Infinity` (fora da RFC 8259), que
+            # um parser JSON estrito (outra linguagem, jq, validador externo)
+            # rejeita. O arquivo continuava relendo bem NO PRÓPRIO Python,
+            # então o problema só aparecia ao integrar com qualquer
+            # ferramenta que valide JSON de verdade.
+            errs.append(f"{tag}: params{bad_path} é NaN/Infinity — não serializável "
+                        "em JSON portável (RFC 8259)")
         sharpe = t.get("sharpe")
         if sharpe is not None and (isinstance(sharpe, bool)
                                    or not (isinstance(sharpe, (int, float))
@@ -295,11 +379,33 @@ def _register_trial_locked(name: str, *, params: dict, sharpe: float | None,
         trials.append(entry)
     errs = validate_trials(trials)
     if errs:
-        raise ValueError("registro violaria o schema de trials: " + "; ".join(errs))
+        # Auditoria hostil 2026-07-17: quando o arquivo já tinha uma entrada
+        # LEGADA malformada (edição manual, schema antigo), validate_trials
+        # roda sobre a lista inteira e bloqueia até o registro de uma trial
+        # nova perfeitamente válida — sem deixar claro que a causa é OUTRA
+        # entrada, não a que se está tentando registrar agora.
+        own_tag_failed = any(e.startswith(f"trial[{name}]:") for e in errs)
+        prefix = ("registro violaria o schema de trials — a trial que você está "
+                 f"registrando ('{name}') está OK; o problema é em outra entrada já "
+                 "presente no arquivo: " if not own_tag_failed else
+                 "registro violaria o schema de trials: ")
+        raise ValueError(prefix + "; ".join(errs))
     # Escrita atômica (tmp + replace): crash no meio do write não pode corromper
     # o registro inteiro — o denominador do DSR é a memória da governança.
+    try:
+        serialized = json.dumps(trials, ensure_ascii=False, indent=2) + "\n"
+    except TypeError as exc:
+        # Auditoria hostil 2026-07-17: um valor não-serializável em params
+        # (datetime, instância de classe custom) vazava como TypeError cru
+        # do json, sem apontar o name da trial nem o caminho do arquivo —
+        # opaco para depurar em produção, inconsistente com o resto do
+        # módulo (load_trials sempre inclui o caminho desde df575a9).
+        raise ValueError(
+            f"trial '{name}': params/metadata contém um valor não serializável em "
+            f"JSON ({exc}) — use apenas tipos JSON nativos (str/int/float/bool/None/"
+            f"list/dict) em params") from exc
     tmp = p.with_suffix(p.suffix + ".tmp")
-    tmp.write_text(json.dumps(trials, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp.write_text(serialized, encoding="utf-8")
     tmp.replace(p)
     return trials
 

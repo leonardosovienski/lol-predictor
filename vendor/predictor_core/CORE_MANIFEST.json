@@ -8,8 +8,8 @@
     "data/aggregation.py": "c7296f174963cf7b8c920c8fb3a4942aa8039581d4a4e49714f2a855cd4f94c8",
     "data/asof.py": "4d570c58e6fe1e0e7b16947ba74bb3534f48679c171cebb6ca623d122b875911",
     "data/circuit_breaker.py": "e6f167342a44bed5558a4f2458e0698780a226ac7d2c6c899e25881213aea6fe",
-    "data/contracts.py": "d580cbed4511932143635746bf7059d85f4ef31678dbd939d799766d74bb7ec9",
-    "data/quality.py": "d3a2bada31ff80b69097245e881bdad51f3d8e4400c455cff526a31f33e4b07b",
+    "data/contracts.py": "81166be44d96317caee95afb1b823848e4fa97e38af83836193ce8a3ff60f662",
+    "data/quality.py": "dc3c386570c0183ef81580304113a58ecac3d4fd52bfc4014c70b855edb57f8b",
     "data/router.py": "f2a022201a68d40170d8f8b2916905162008c32056d74a7bcbb60be64b13ea6d",
     "infra.py": "94adde98ec6b24d40fd07fb1fd44973266a2d9de3eb5429d0e8ff886600fec2d",
     "kernel/__init__.py": "dbe35a51e9b3fd6fcd78268e90e62932632d1f140c94e370e4355ef8f403c124",
@@ -30,7 +30,7 @@
     "measurement/ordinal.py": "49630323f42478414aea0c162711202b11de74a07048571ae3b754f96129d735",
     "measurement/replay.py": "d4aa424852d9b191584abe84bb371825506735727bd0ac858bf1dfaedcf6e848",
     "measurement/stats.py": "35e7347cc60b17480ed6d7ee6c83b4d3a69b9e9ffe72642447a93b79e98e22a6",
-    "measurement/trials.py": "372b9254889a86efa711b5d81b11d21d6f59726d27d20d70351be6f0d4c26662",
+    "measurement/trials.py": "dc550e6ccdac1c74eda8f1057e86accd02d3d211231ce693e2062bf1393c607e",
     "net.py": "fbe181af70f6bb8638d3506383fa355938b46e3b0c7d27b506d9fcbd6a115955",
     "obs.py": "fc498d0ae23e1a953b3e4b98b736608c512d4022edaac8d4ef9afbbceb217848",
     "replay.py": "e1dc512031df957135b76009287b134899740e1a4022ccf093cb993675bb3b34",
@@ -45,7 +45,7 @@
     "testing/synth.py": "f0b9d0b1ef862e5d7dd2220489bb57412d09810f74b6e00e18f5ddad93fa1e76",
     "VERSION": "b309cdd317cf2a142bbb37911132ccdeaf7901884421b841564112b205e4aee6"
   },
-  "aggregate": "482202c2889effd3",
-  "synced_at": "2026-07-17T19:59:37+00:00",
+  "aggregate": "a68c4c0decdb2e61",
+  "synced_at": "2026-07-18T01:09:38+00:00",
   "source_version": "1.3.1-ga-20260716"
 }

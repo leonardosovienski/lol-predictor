@@ -9,6 +9,7 @@ cada domínio (tabelas raw/adjustments/quarantine) fica no domínio.
 from __future__ import annotations
 
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -17,17 +18,35 @@ _FACTOR_MIN, _FACTOR_MAX = 0.05, 20.0  # limites de sanidade para fator de ajust
 
 
 def overnight_returns(dates, closes):
-    """Retornos close-a-close consecutivos: [(date, ret)] a partir do 2º ponto."""
+    """Retornos close-a-close consecutivos: [(date, ret)] a partir do 2º ponto.
+
+    Um close[i-1] NaN produz ret=NaN em vez de ser omitido em silêncio (auditoria
+    hostil 2026-07-17: `closes[i-1] > 0` é sempre False para NaN em Python — sem
+    esta checagem explícita, um ponto corrompido simplesmente desaparecia da
+    série de retornos, como se a janela tivesse um candle a menos em vez de um
+    candle ruim). Quem chama decide o que fazer com o NaN — ver detect_jumps."""
     out = []
     for i in range(1, len(closes)):
-        if closes[i - 1] > 0:
+        prev = closes[i - 1]
+        if isinstance(prev, float) and math.isnan(prev):
+            out.append((dates[i], float("nan")))
+        elif prev > 0:
             out.append((dates[i], closes[i] / closes[i - 1] - 1.0))
     return out
 
 
 def detect_jumps(dates, closes, threshold):
-    """Datas onde |retorno overnight| > threshold (candidatas a split ou erro)."""
-    return [(d, r) for d, r in overnight_returns(dates, closes) if abs(r) > threshold]
+    """Datas onde |retorno overnight| > threshold (candidatas a split ou erro),
+    ou onde o retorno é NaN.
+
+    Auditoria hostil 2026-07-17: `abs(nan) > threshold` é sempre False em
+    Python, então um close NaN no MEIO da série (não só em closes[i-1], via
+    overnight_returns acima, mas também quando só closes[i] é NaN — nesse caso
+    o retorno JÁ nasce NaN pela aritmética normal) passava despercebido por
+    este filtro — o oposto da filosofia documentada no módulo ("nunca conserta
+    na mão — registra a trilha e quarentena"). NaN é sempre reportado."""
+    return [(d, r) for d, r in overnight_returns(dates, closes)
+           if math.isnan(r) or abs(r) > threshold]
 
 
 def infer_split_factor(close_before, close_after, tol=0.08):

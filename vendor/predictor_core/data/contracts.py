@@ -102,6 +102,30 @@ class PredictionPoint:
     metadata: dict | None = None
 
     def __post_init__(self) -> None:
+        # Auditoria hostil 2026-07-17 (rodada predictor_core): o construtor
+        # aceitava QUALQUER objeto em predicted_at/matures_at sem checagem de
+        # tipo — uma string ISO (sobrevivente comum de um round-trip JSON)
+        # passava direto, e o invariante abaixo então comparava strings
+        # LEXICOGRAFICAMENTE em vez de cronologicamente (dois offsets
+        # diferentes do mesmo instante UTC podem comparar "fora de ordem"
+        # como string), podendo tanto aceitar um PredictionPoint realmente
+        # inválido quanto rejeitar um válido — e o próprio caminho de erro
+        # quebrava com AttributeError ao tentar chamar .isoformat() numa str.
+        for field_name in ("predicted_at", "matures_at"):
+            value = getattr(self, field_name)
+            if not isinstance(value, datetime):
+                raise TypeError(
+                    f"PredictionPoint.{field_name} deve ser datetime, recebeu "
+                    f"{type(value).__name__} — desserialize para datetime antes de "
+                    "construir (ex.: datetime.fromisoformat), não passe a string crua")
+        # Mesma auditoria: comparar um datetime naive com um aware levanta
+        # TypeError cru do Python ("can't compare offset-naive and
+        # offset-aware datetimes"), vazando sem contexto de domínio.
+        if (self.predicted_at.tzinfo is None) != (self.matures_at.tzinfo is None):
+            raise ValueError(
+                "PredictionPoint inválido: predicted_at e matures_at misturam "
+                "datetime naive e timezone-aware — normalize os dois para o mesmo "
+                "regime (preferencialmente UTC-aware) antes de construir")
         if self.matures_at < self.predicted_at:
             raise ValueError(
                 f"PredictionPoint inválido: matures_at ({self.matures_at.isoformat()}) "
@@ -121,6 +145,19 @@ class PredictionPoint:
 
     def is_mature(self, now: datetime) -> bool:
         return now >= self.matures_at
+
+    def __hash__(self) -> int:
+        # Auditoria hostil 2026-07-17: o __hash__ auto-gerado por
+        # @dataclass(frozen=True) hasheia TODOS os campos, incluindo
+        # metadata/value — que podem ser dict/list (não-hasheáveis). Isso
+        # tornava a hasheabilidade dependente do CONTEÚDO em runtime (às
+        # vezes funciona, às vezes `TypeError: unhashable type`), não da
+        # estrutura da classe. Hash baseado só nos dois campos sempre-
+        # datetime é sempre hasheável e continua consistente com __eq__
+        # (objetos __eq__-iguais têm necessariamente os mesmos dois campos,
+        # logo o mesmo hash; colisão de hash entre objetos DIFERENTES é
+        # permitida pelo contrato de hash e não é um bug).
+        return hash((self.predicted_at, self.matures_at))
 
 
 class DataProvider(abc.ABC):
