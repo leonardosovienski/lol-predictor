@@ -1,5 +1,35 @@
 # HANDOFF.md — lol-predictor
 
+> ## 🛡️ AUDITORIA FINAL — hardening de identidade/lifecycle/ratings (2026-07-19)
+>
+> Auditoria hostil dedicada (identidade, patches, lifecycle, ratings) sobre
+> a suíte verde de 53 testes. **Seis bugs/lacunas reais corrigidos**, todos
+> com teste hostil novo em `tests/test_hostile_audit.py` (12 testes):
+>
+> 1. `EloModel._elo` estourava **KeyError cru** quando um `ratings_file`
+>    customizado não continha um time que `resolve_team` enxerga no
+>    ratings.json default — agora ValueError de contrato ("sem rating").
+> 2. `update_ratings` aceitava **empate** (ex.: 1–1) e persistia como
+>    derrota do time A — agora recusa placar sem vencedor, sem mutação.
+> 3. `update_ratings` aceitava placar **negativo/float/bool** — agora exige
+>    inteiros ≥ 0; também recusa time contra si mesmo.
+> 4. Rating **NaN/±Inf** em ratings.json carregava e propagava prob=nan
+>    silenciosamente — agora ValueError na carga.
+> 5. `resolve_team`: hit único de substring no Top 30 vencia mesmo com
+>    OUTRA entidade de ratings.json também batendo (família LOUD/Cloud9)
+>    — agora ambíguo → ValueError com sugestões. `lower()` harmonizado
+>    para `casefold()` em todo o resolver.
+> 6. `mature_results`: `prediction_id` desconhecido caía **silenciosamente**
+>    no matching por nome de time (podia maturar o registro errado) — agora
+>    erro explícito; também valida que os times do resultado batem com o
+>    PRE_EVENT resolvido.
+>
+> Suíte pós-fix: **65 testes verdes**; `scripts/ci_check.py` 3/3 barreiras;
+> smoke do fixture EWC read-only inalterado. Nenhum artefato de produção
+> (ratings.json, predictions.jsonl, snapshots) foi modificado. Sem novas
+> pendências de ecossistema; ausência de odds segue sendo bloqueio de dado
+> externo (SCI-7), não bug de código.
+>
 > ## ADENDO ECOSSISTEMA (2026-07-18)
 >
 > Vendor de `predictor_core` byte-idêntico ao canônico, sincronizado em

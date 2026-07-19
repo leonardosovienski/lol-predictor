@@ -13,6 +13,7 @@ Totais de abates: H2 por time foi refutada. O caminho legado usa somente o
 baseline agregado declarado no config e nunca consome stats por time.
 """
 import json
+import math
 from pathlib import Path
 from statistics import NormalDist
 
@@ -64,13 +65,24 @@ class EloModel:
             lived = json.loads(self.path.read_text(encoding="utf-8"))
             for name, value in lived.items():
                 canonical = seeded_names.get(name.casefold(), name)
-                self.ratings[canonical] = float(value)
+                rating = float(value)
+                if not math.isfinite(rating):
+                    raise ValueError(
+                        f"rating não finito para {name!r} em {self.path}: "
+                        f"{value!r}")
+                self.ratings[canonical] = rating
                 self._persistable.add(canonical)
         # Platt H3 foi refutada: serving canônico permanece Elo cru.
         self.platt = None
 
     def _elo(self, name: str) -> tuple[str, float]:
         official = resolve_team(name)["name"]
+        if official not in self.ratings:
+            # resolve_team enxerga o ratings.json default; com ratings_file
+            # customizado o nome pode não existir AQUI — erro de contrato,
+            # nunca KeyError cru
+            raise ValueError(
+                f"time {official!r} sem rating em {self.path}")
         return official, self.ratings[official]
 
     def predict_match(self, team_a: str, team_b: str, format: str = "bo3") -> dict:
@@ -134,8 +146,18 @@ class EloModel:
         conhecido (um 3-0 pode ser BO5); sem ele, K é inferido do placar
         (soma ≤1 → BO1; ≤3 → BO3; senão BO5). Persiste em ratings_file
         apenas ratings vividos/atualizados — nunca sementes intactas."""
+        for label, res in (("result_a", result_a), ("result_b", result_b)):
+            if not isinstance(res, int) or isinstance(res, bool) or res < 0:
+                raise ValueError(
+                    f"{label} deve ser inteiro >= 0, veio {res!r}")
+        if result_a == result_b:
+            raise ValueError(
+                f"placar {result_a}-{result_b} sem vencedor — série de LoL "
+                "não termina empatada")
         a, elo_a = self._elo(team_a)
         b, elo_b = self._elo(team_b)
+        if a == b:
+            raise ValueError("um time não joga contra si mesmo")
         if format is not None:
             fmt = format.lower()
             if fmt not in K_FACTORS:

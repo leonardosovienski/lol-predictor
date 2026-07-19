@@ -57,13 +57,13 @@ def resolve_team(name: str) -> dict:
     com sugestões quando ambíguo/desconhecido (contrato de erro da
     plataforma)."""
     teams = load_teams()
-    low = name.strip().lower()
+    low = name.strip().casefold()
     for t in teams:
-        if t["name"].lower() == low:
+        if t["name"].casefold() == low:
             return t
     rating_names = load_rating_names()
     for n in rating_names:
-        if n.lower() == low:
+        if n.casefold() == low:
             canonical = next(
                 (t for t in teams if t["name"].casefold() == n.casefold()),
                 None,
@@ -72,10 +72,15 @@ def resolve_team(name: str) -> dict:
 
     # Exact lived names must win before substring matching. Otherwise LOUD
     # resolves to the seeded team Cloud9 merely because it is a substring.
-    hits = [t for t in teams if low in t["name"].lower()]
+    hits = [t for t in teams if low in t["name"].casefold()]
+    rhits = [n for n in rating_names if low in n.casefold()]
+    # um hit único do Top 30 só vence se ratings.json não tiver OUTRA
+    # entidade também batendo — senão é ambíguo (família LOUD/Cloud9)
     if len(hits) == 1:
-        return hits[0]
-    rhits = [n for n in rating_names if low in n.lower()]
+        extra = [n for n in rhits
+                 if n.casefold() != hits[0]["name"].casefold()]
+        if not extra:
+            return hits[0]
     # 2+ times do Top 30 batendo já é ambíguo — não cair silenciosamente
     # num nome único do ratings.json (mesma família do bug LOUD/Cloud9)
     if not hits and len(rhits) == 1:

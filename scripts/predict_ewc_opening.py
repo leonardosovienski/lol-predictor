@@ -215,7 +215,11 @@ def mature_results(ledger_path: Path, results: dict[str, Any], now: datetime | N
     for result in results.get("results", []):
         key = (result.get("team_a"), result.get("team_b"))
         requested_id = result.get("prediction_id")
-        candidates = ([pre_events[requested_id]] if requested_id in pre_events
+        if requested_id is not None and requested_id not in pre_events:
+            raise ValueError(
+                f"unknown prediction_id {requested_id!r} for {key[0]} vs "
+                f"{key[1]}; refusing to fall back to team-name matching")
+        candidates = ([pre_events[requested_id]] if requested_id is not None
                       else list(by_teams.get(key, [])))
         if not candidates:
             raise ValueError(f"no PRE_EVENT record for {key[0]} vs {key[1]}")
@@ -224,6 +228,11 @@ def mature_results(ledger_path: Path, results: dict[str, Any], now: datetime | N
                 f"ambiguous PRE_EVENT records for {key[0]} vs {key[1]}; "
                 "provide prediction_id")
         pre_event = candidates[0]
+        if (pre_event["team_a"], pre_event["team_b"]) != key:
+            raise ValueError(
+                f"result teams {key} do not match PRE_EVENT "
+                f"{(pre_event['team_a'], pre_event['team_b'])} for "
+                f"prediction_id {pre_event['prediction_id']}")
         prediction_id = pre_event["prediction_id"]
         if prediction_id in matured:
             already_present += 1
