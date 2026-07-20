@@ -2,6 +2,7 @@
 import json
 import math
 import os
+import csv
 import subprocess
 import sys
 import urllib.request
@@ -11,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 LOG = ROOT / "data" / "atualiza_semanal.log"
 DRIVE_IDS = {2026: "1hnpbrUpBMS1TZI7IovfpKeZfWJH1Aptm"}
+OFFICIAL_ARCHIVE = "https://oracles-elixir.s3-us-west-2.amazonaws.com"
 WORKSPACE = ROOT.parent
 if str(WORKSPACE) not in sys.path:
     sys.path.insert(0, str(WORKSPACE))
@@ -39,6 +41,7 @@ def _download_urls(year: int) -> list[str]:
     if not file_id:
         return urls
     urls.append(f"https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm=t")
+    urls.append(f"{OFFICIAL_ARCHIVE}/{year}_LoL_esports_match_data_from_OraclesElixir.csv")
     return urls
 
 
@@ -50,6 +53,16 @@ def _valid_oracles_csv(path: Path) -> bool:
     except (OSError, UnicodeError):
         return False
     return "gameid" in header and "league" in header and "teamname" in header
+
+
+def _max_game_date(path: Path) -> str | None:
+    """ISO date maximum used only as an anti-regression publication guard."""
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            dates = (row.get("date", "") for row in csv.DictReader(handle))
+            return max((value for value in dates if value), default=None)
+    except (OSError, UnicodeError, csv.Error):
+        return None
 
 
 def download_csv(year: int) -> bool:
@@ -68,6 +81,12 @@ def download_csv(year: int) -> bool:
             if not _valid_oracles_csv(temporary):
                 size = temporary.stat().st_size if temporary.exists() else 0
                 log(f"  [download] fonte {source_number} devolveu arquivo inválido ({size} bytes)")
+                temporary.unlink(missing_ok=True)
+                continue
+            candidate_date = _max_game_date(temporary)
+            cached_date = _max_game_date(destination) if _valid_oracles_csv(destination) else None
+            if cached_date and (not candidate_date or candidate_date < cached_date):
+                log(f"  [download] fonte {source_number} rejeitada por regressão temporal")
                 temporary.unlink(missing_ok=True)
                 continue
             temporary.replace(destination)

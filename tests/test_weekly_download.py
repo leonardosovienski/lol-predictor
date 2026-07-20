@@ -13,9 +13,11 @@ class _Response(io.BytesIO):
         self.close()
 
 
-def _csv_bytes(size: int = 1_000_100) -> bytes:
-    header = b"gameid,league,teamname,result\n"
-    return header + b"x" * (size - len(header))
+def _csv_bytes(size: int = 1_000_100, date: str = "2026-07-20") -> bytes:
+    header = b"gameid,league,teamname,date,result\n"
+    row = f"g1,LCK,T1,{date},1\n".encode()
+    repeats = (size - len(header)) // len(row) + 1
+    return (header + row * repeats)[:size]
 
 
 def test_configured_url_precedes_official_drive(monkeypatch):
@@ -46,3 +48,15 @@ def test_failed_download_preserves_valid_cache(tmp_path, monkeypatch):
                         lambda *_args, **_kwargs: _Response(b"quota exceeded"))
     assert not weekly.download_csv(2026)
     assert target.read_bytes() == original
+
+
+def test_older_official_fallback_cannot_replace_newer_cache(tmp_path, monkeypatch):
+    monkeypatch.setattr(weekly, "ROOT", tmp_path)
+    target = tmp_path / "data" / "raw" / "2026_oe.csv"
+    target.parent.mkdir(parents=True)
+    current = _csv_bytes(date="2026-07-20")
+    target.write_bytes(current)
+    monkeypatch.setattr(weekly.urllib.request, "urlopen",
+                        lambda *_args, **_kwargs: _Response(_csv_bytes(date="2026-06-02")))
+    assert not weekly.download_csv(2026)
+    assert target.read_bytes() == current

@@ -4,7 +4,9 @@ O refresh semanal usa o download oficial do Oracle's Elixir. Se o Google
 Drive oficial estiver temporariamente limitado, uma segunda URL explicitamente
 aprovada pode ser fornecida em `ORACLES_ELIXIR_<ANO>_URL`; o CSV só substitui
 o cache após validação de tamanho, UTF-8 e colunas estruturais. Mirrors não
-configurados nunca são usados silenciosamente.
+configurados nunca são usados silenciosamente. O bucket S3 publicado pela
+própria API do Oracle's Elixir também é tentado, mas um arquivo com data máxima
+anterior à do cache local é rejeitado para impedir redução silenciosa da amostra.
 
 > **Status: Fase 1 CONCLUÍDA (2026-07-11).** Backtest prequential sobre
 > 3.877 mapas do Oracle's Elixir: **H1 (Elo vencedor) COMPROVADA** (Brier
