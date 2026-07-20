@@ -38,3 +38,12 @@ backtest:
   min_league_games_kills: 30   # média/sigma por liga só valem com amostra
   bootstrap_iterations: 1000
   bootstrap_seed: 13
+
+# Fase 1b — fonte pública read-only de probabilidades negociadas. Polymarket
+# não é bookmaker; nenhum endpoint de ordem/trading é usado pelo projeto.
+market_shadow:
+  provider: polymarket
+  source_kind: prediction_market
+  gamma_url: https://gamma-api.polymarket.com
+  clob_url: https://clob.polymarket.com
+  output: data/shadow/market_quotes.jsonl

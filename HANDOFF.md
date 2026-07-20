@@ -1,5 +1,22 @@
 # HANDOFF.md — lol-predictor
 
+> ## SCI-7 (LoL) DESBLOQUEADO — fonte de mercado (2026-07-20)
+>
+> A parte LoL do SCI-7 foi resolvida com Polymarket: Gamma API para descoberta
+> e CLOB público para order book/preço histórico, ambos read-only e sem chave.
+> O projeto registra a semântica correta (`prediction_market`, não bookmaker),
+> provenance, `published_at`, `observed_at`, jogo agendado, liquidez e spread;
+> rejeita mercado ausente/ambíguo, book unilateral e qualquer coleta após o
+> início. Coletor: `scripts/collect_polymarket_shadow.py`; runtime ignorado em
+> `data/shadow/`. Não existe código de ordem, stake ou aposta.
+>
+> Cinco testes determinísticos novos levam a suíte a **76 verdes**. A fonte e
+> os endpoints foram verificados na documentação pública e na cobertura LoL;
+> o terminal desta sessão não resolveu DNS, portanto nenhum snapshot de
+> produção foi fabricado. O próximo jogo coberto já pode iniciar a amostra
+> prospectiva. Ausência de amostra madura é estado científico normal, não mais
+> bloqueio de fonte.
+>
 > ## FECHAMENTO DAS PENDÊNCIAS TÉCNICAS (2026-07-20)
 >
 > A pedido do operador, as pendências locais remanescentes foram fechadas:
@@ -10,9 +27,9 @@
 > dedupe/append do ledger foi serializado entre threads/processos, impedindo
 > dois registros `MATURED` concorrentes. Tudo permanece no domínio local.
 >
-> Estado final: **71 testes verdes**, CI 3/3 e smoke EWC 8/8. Não restou
-> pendência técnica local conhecida. SCI-7 (odds) continua exclusivamente como
-> dependência externa de dados; patch/roster permanecem limitações declaradas,
+> Estado desta etapa: **71 testes verdes**, CI 3/3 e smoke EWC 8/8. Não restou
+> pendência técnica local conhecida. O bloqueio SCI-7 então existente foi
+> posteriormente resolvido para LoL no adendo acima; patch/roster permanecem limitações declaradas,
 > não entradas parcialmente implementadas.
 >
 > ## COMPLEMENTO DA AUDITORIA FINAL (2026-07-20)
@@ -60,8 +77,8 @@
 > Suíte pós-fix: **65 testes verdes**; `scripts/ci_check.py` 3/3 barreiras;
 > smoke do fixture EWC read-only inalterado. Nenhum artefato de produção
 > (ratings.json, predictions.jsonl, snapshots) foi modificado. Sem novas
-> pendências de ecossistema; ausência de odds segue sendo bloqueio de dado
-> externo (SCI-7), não bug de código.
+> pendências de ecossistema naquele momento; o SCI-7 de LoL foi posteriormente
+> desbloqueado pelo adendo de 20/07 no topo deste arquivo.
 >
 > ## ADENDO ECOSSISTEMA (2026-07-18)
 >
@@ -438,8 +455,8 @@
 >
 > Serving materializado: `ratings.json` (Elo vivido de 85 times) +
 > `calibration.json` (média/σ de kills por liga, 11 ligas). Relatório:
-> `docs/RELATORIO_FASE1.md`. Fase 1b (odds ao vivo em sombra) depende de
-> fonte de odds corrente — não existe ainda.
+> `docs/RELATORIO_FASE1.md`. A fonte para Fase 1b foi integrada posteriormente
+> em 20/07; ver o adendo SCI-7 no topo.
 
 > ## 🎮 CRIAÇÃO (2026-07-10)
 >

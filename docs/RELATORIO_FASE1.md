@@ -57,8 +57,17 @@ injeta ruído amostral. Consequência prática: o serving de kills deve usar
   `predict_kills_total` sem `team_stats.json` cai na média da liga, que é o
   comportamento validado).
 
-## Fase 1b (futura)
+## Fase 1b — fonte desbloqueada em 2026-07-20
 
-Sem fonte de odds históricas de LoL. Se quiser mercado: coleta ao vivo em
-modo sombra (padrão H3 do brasileirão) usando o vencedor (H1 comprovada)
-como modelo — precisa de fonte de odds corrente antes de existir.
+A ausência de fonte foi resolvida com a API pública read-only do Polymarket.
+Ela fornece mercados de LoL, order books e histórico sem autenticação. Como é
+um mercado de previsão, e não bookmaker, o contrato registra explicitamente
+`source_kind=prediction_market`; odds decimais são derivadas apenas para
+comparação (`1/p`). `src/data/polymarket_provider.py` exige moneyline exato,
+identidade inequívoca, bid/ask dos dois lados e timestamps PRE_EVENT. A coleta
+prospectiva é feita por `scripts/collect_polymarket_shadow.py` em
+`data/shadow/market_quotes.jsonl` (ignorado), sem qualquer endpoint de trading.
+
+Isto remove o bloqueio de fonte. Não antecipa o veredito econômico: ROI/CLV
+continuam sem conclusão até existir amostra prospectiva maturada e um critério
+pré-registrado.

@@ -5,8 +5,8 @@
 > 0,4432 vs banda 0,4612, acerto 64,6%, DM p=0,0006) e **H2 (abates por time)
 > REFUTADA** — a média da liga vence; o serving de kills usa só ela. Elo
 > vivido de 82 identidades canônicas materializado em `data/ratings.json`.
-> **Sem odds, sem
-> apostas** — métrica é probabilística (Fase 1b exigiria fonte de odds).
+> **Sem apostas reais.** A Fase 1b agora possui fonte pública read-only de
+> probabilidades negociadas (Polymarket); coleta e avaliação são apenas shadow.
 > Relatório: `docs/RELATORIO_FASE1.md`. Não é ferramenta de investimento.
 >
 > **Hardening 2026-07-19/20**: auditoria hostil de identidade/lifecycle/ratings
@@ -14,7 +14,7 @@
 > com `ratings_file` customizado, NaN/Inf em ratings, substring ambígua no
 > `resolve_team`, `prediction_id` desconhecido na maturação, ausência de
 > normalização Unicode NFC, colisão regional, timestamps, série incompleta e
-> concorrência/atomicidade de ratings e lifecycle). Suíte: 71
+> concorrência/atomicidade de ratings e lifecycle). Suíte atual: 76
 > testes verdes (`tests/test_hostile_audit.py`). Detalhe em `HANDOFF.md`.
 
 Laboratório de previsão de **partidas de League of Legends** (vencedor da
@@ -88,4 +88,14 @@ vendor/predictor_core/      # v1.3.1 via sync_core (NÃO editar à mão)
 | 0 | Esqueleto: estrutura, vendor, Elo + kills, serving, CI | ✅ |
 | 1 | Histórico + backtest walk-forward H1 | ✅ |
 | 2 | Governança, lifecycle e refresh observável | ✅; refresh natural de 20/07 ainda será observado |
-| 3 | Odds/shadow econômico | Não autorizado |
+| 3 | Mercado/shadow econômico | Fonte pública integrada; coleta prospectiva pronta, sem trading |
+
+Coleta manual de uma cotação PRE_EVENT (arquivo ignorado pelo Git):
+
+```powershell
+python scripts/collect_polymarket_shadow.py "T1" "Gen.G"
+```
+
+A coleta exige moneyline exato, order book com bid/ask dos dois lados,
+timestamp anterior ao jogo e identidade inequívoca. Polymarket é mercado de
+previsão, não bookmaker; `decimal_a/b` são apenas `1/probabilidade`.

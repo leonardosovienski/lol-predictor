@@ -10,6 +10,7 @@
 /data/calibration.json
 /data/walkforward_summary.json
 /data/raw/
+/data/shadow/
 /data/lol.db*
 # trials.json + atestado são VERSIONADOS (denominador do DSR imortal)
 *.db
