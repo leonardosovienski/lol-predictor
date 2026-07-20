@@ -14,6 +14,7 @@ import csv
 import os
 from pathlib import Path
 
+from ..config import ROOT as _ROOT  # noqa: F401  (ativa vendor no sys.path)
 from predictor_core.data.contracts import DataUnavailableError
 
 
@@ -57,7 +58,13 @@ class OracleProvider:
                         pend[gid] = {"row": row, "sides": [side]}
                     else:
                         pend[gid]["sides"].append(side)
-                        yield self._merge(gid, pend.pop(gid))
+                    labels = {item["side"] for item in pend[gid]["sides"]}
+                    if {"Blue", "Red"} <= labels:
+                        entry = pend.pop(gid)
+                        try:
+                            yield self._merge(gid, entry)
+                        except DataUnavailableError as exc:
+                            print(f"aviso: jogo {gid} inválido — descartado: {exc}")
         # jogos com só 1 linha de time (dado quebrado) são descartados calados?
         # Não: reporta a contagem pra ninguém achar que cobriu tudo.
         if pend:
@@ -67,8 +74,14 @@ class OracleProvider:
     @staticmethod
     def _merge(gid: str, entry: dict) -> dict:
         row, sides = entry["row"], entry["sides"]
-        blue = next((s for s in sides if s["side"] == "Blue"), sides[0])
-        red = next((s for s in sides if s["side"] == "Red"), sides[-1])
+        blue = next((s for s in sides if s["side"] == "Blue"), None)
+        red = next((s for s in sides if s["side"] == "Red"), None)
+        if blue is None or red is None:
+            raise DataUnavailableError("exige exatamente os lados Blue e Red")
+        if not blue["team"] or not red["team"] or blue["team"] == red["team"]:
+            raise DataUnavailableError("identidade de times ausente ou duplicada")
+        if {blue["result"], red["result"]} != {"0", "1"}:
+            raise DataUnavailableError("resultado deve ter um vencedor e um perdedor")
 
         def _i(v):
             try:

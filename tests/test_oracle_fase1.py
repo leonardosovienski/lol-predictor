@@ -60,6 +60,35 @@ def test_jogo_com_linha_unica_descartado(tmp_path, capsys):
     assert "descartados" in capsys.readouterr().out
 
 
+def test_linha_blue_duplicada_nao_fabrica_jogo_contra_si_mesmo(tmp_path):
+    raw = _csv(tmp_path, [
+        _team_row("g1", "Blue", "T1", "1", "18"),
+        _team_row("g1", "Blue", "T1", "1", "18"),
+        _team_row("g1", "Red", "Gen.G", "0", "9"),
+    ])
+    games = list(OracleProvider(raw).iter_games())
+    assert len(games) == 1
+    assert (games[0]["team_a"], games[0]["team_b"]) == ("T1", "Gen.G")
+
+
+def test_resultado_sem_vencedor_e_descartado(tmp_path, capsys):
+    raw = _csv(tmp_path, [
+        _team_row("g1", "Blue", "T1", "0", "9"),
+        _team_row("g1", "Red", "Gen.G", "0", "9"),
+    ])
+    assert list(OracleProvider(raw).iter_games()) == []
+    assert "resultado deve ter um vencedor" in capsys.readouterr().out
+
+
+def test_mesmo_time_nos_dois_lados_e_descartado(tmp_path, capsys):
+    raw = _csv(tmp_path, [
+        _team_row("g1", "Blue", "T1", "1", "18"),
+        _team_row("g1", "Red", "T1", "0", "9"),
+    ])
+    assert list(OracleProvider(raw).iter_games()) == []
+    assert "identidade de times" in capsys.readouterr().out
+
+
 def test_db_upsert_idempotente():
     conn = db.connect(":memory:")
     try:
