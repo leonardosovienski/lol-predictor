@@ -1,5 +1,11 @@
 # lol-predictor
 
+O refresh semanal usa o download oficial do Oracle's Elixir. Se o Google
+Drive oficial estiver temporariamente limitado, uma segunda URL explicitamente
+aprovada pode ser fornecida em `ORACLES_ELIXIR_<ANO>_URL`; o CSV só substitui
+o cache após validação de tamanho, UTF-8 e colunas estruturais. Mirrors não
+configurados nunca são usados silenciosamente.
+
 > **Status: Fase 1 CONCLUÍDA (2026-07-11).** Backtest prequential sobre
 > 3.877 mapas do Oracle's Elixir: **H1 (Elo vencedor) COMPROVADA** (Brier
 > 0,4432 vs banda 0,4612, acerto 64,6%, DM p=0,0006) e **H2 (abates por time)

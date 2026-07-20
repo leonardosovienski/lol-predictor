@@ -1,6 +1,7 @@
 """Domain payload for weekly LoL refresh; deliberately unaware of Scheduler."""
 import json
 import math
+import os
 import subprocess
 import sys
 import urllib.request
@@ -28,29 +29,56 @@ def log(msg: str) -> None:
         handle.write(line + "\n")
 
 
-def download_csv(year: int) -> bool:
+def _download_urls(year: int) -> list[str]:
+    """Fontes explícitas, sem mirror silencioso ou scraping de terceiros."""
+    urls = []
+    override = os.environ.get(f"ORACLES_ELIXIR_{year}_URL", "").strip()
+    if override:
+        urls.append(override)
     file_id = DRIVE_IDS.get(year)
     if not file_id:
-        log(f"  [download] sem id do Drive para {year}")
+        return urls
+    urls.append(f"https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm=t")
+    return urls
+
+
+def _valid_oracles_csv(path: Path) -> bool:
+    if not path.is_file() or path.stat().st_size < 1_000_000:
         return False
-    url = f"https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm=t"
+    try:
+        header = path.open("r", encoding="utf-8-sig", errors="strict").readline().casefold()
+    except (OSError, UnicodeError):
+        return False
+    return "gameid" in header and "league" in header and "teamname" in header
+
+
+def download_csv(year: int) -> bool:
+    urls = _download_urls(year)
+    if not urls:
+        log(f"  [download] sem fonte configurada para {year}")
+        return False
     destination = ROOT / "data" / "raw" / f"{year}_oe.csv"
     temporary = destination.with_suffix(".tmp")
-    try:
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        with urllib.request.urlopen(url, timeout=300) as response, open(temporary, "wb") as handle:
-            handle.write(response.read())
-        if temporary.stat().st_size < 1_000_000:
-            log(f"  [download] arquivo suspeito ({temporary.stat().st_size} bytes)")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    for source_number, url in enumerate(urls, start=1):
+        try:
+            with urllib.request.urlopen(url, timeout=300) as response, open(temporary, "wb") as handle:
+                while block := response.read(1024 * 1024):
+                    handle.write(block)
+            if not _valid_oracles_csv(temporary):
+                size = temporary.stat().st_size if temporary.exists() else 0
+                log(f"  [download] fonte {source_number} devolveu arquivo inválido ({size} bytes)")
+                temporary.unlink(missing_ok=True)
+                continue
+            temporary.replace(destination)
+            log(f"  [download] {destination.name}: {destination.stat().st_size} bytes (fonte {source_number})")
+            return True
+        except Exception as exc:
+            log(f"  [download] fonte {source_number} FALHOU: {exc}")
             temporary.unlink(missing_ok=True)
-            return False
-        temporary.replace(destination)
-        log(f"  [download] {destination.name}: {destination.stat().st_size} bytes")
-        return True
-    except Exception as exc:
-        log(f"  [download] FALHOU: {exc}")
-        temporary.unlink(missing_ok=True)
-        return False
+    if _valid_oracles_csv(destination):
+        log("  [download] todas as fontes falharam; cache anterior válido preservado")
+    return False
 
 
 def build_steps():
