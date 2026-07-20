@@ -14,7 +14,7 @@
 > com `ratings_file` customizado, NaN/Inf em ratings, substring ambígua no
 > `resolve_team`, `prediction_id` desconhecido na maturação, ausência de
 > normalização Unicode NFC, colisão regional, timestamps, série incompleta e
-> concorrência/atomicidade de ratings e lifecycle). Suíte atual: 76
+> concorrência/atomicidade de ratings e lifecycle). Suíte atual: 81
 > testes verdes (`tests/test_hostile_audit.py`). Detalhe em `HANDOFF.md`.
 
 Laboratório de previsão de **partidas de League of Legends** (vencedor da
@@ -112,3 +112,14 @@ A tarefa `lol-market-shadow` coleta a cada 30 minutos. O pré-registro
 `h4-lol-market-shadow-prospectivo` exclui probes anteriores a 20/07 06:20:41Z,
 exige 50 partidas maturadas, 30 dias, 3 competições e IC bootstrap antes de
 qualquer conclusão. Não existe caminho de aposta real.
+
+Backtest separado H4‑R (não conta no gate prospectivo):
+
+```powershell
+python scripts/backtest_market_retrospective.py `
+  --output data/reports/h4r_polymarket_retrospective_2026-07-20.json
+```
+
+Resultado em 177 partidas/28 competições: Brier Elo 0,4320 contra mercado
+0,4023; ROI shadow +10,57% em 116 sinais. Os dois IC95% cruzam zero, portanto
+o veredito retrospectivo é `INCONCLUSIVO` e a H4 prospectiva continua intacta.

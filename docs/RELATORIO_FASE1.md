@@ -78,3 +78,13 @@ a cada 30 minutos pela tarefa `lol-market-shadow`; cada linha congela também a
 probabilidade do Elo e o hash de ratings. O gate exige 50 partidas maturadas,
 30 dias, 3 competições e incerteza bootstrap. O status é consultado com
 `python scripts/market_shadow_status.py` e começa em `PENDING_SAMPLE`.
+
+### H4-R retrospectiva (exploratória)
+
+Uma trilha separada, pré-registrada antes do cálculo e sem substituir H4,
+avaliou 177 moneylines históricas em 28 competições. O mercado teve Brier
+0,4023 contra 0,4320 do Elo; diferença +0,0297, IC95% [-0,0068; +0,0683].
+O ROI shadow foi +10,57% em 116 sinais, IC95% [-11,82%; +33,70%]. Veredito:
+**INCONCLUSIVA**, pois ambos os intervalos cruzam zero. O ponto estimado de
+Brier favorece o mercado. Relatório completo em
+`data/reports/h4r_polymarket_retrospective_2026-07-20.json`.

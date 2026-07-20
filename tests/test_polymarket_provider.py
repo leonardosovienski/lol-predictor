@@ -87,3 +87,16 @@ def test_descobre_apenas_moneyline_futura():
     assert rows == [{"team_a": "T1", "team_b": "Gen.G",
                      "scheduled_at": "2026-07-21T18:00:00+00:00",
                      "event_id": "1"}]
+
+
+def test_preco_historico_respeita_cutoff():
+    def history(_url):
+        return {"history": [
+            {"t": 1784541600, "p": .4},
+            {"t": 1784545200, "p": .45},
+            {"t": 1784548800, "p": .9},
+        ]}
+    cutoff = datetime.fromtimestamp(1784547000, timezone.utc)
+    at, price = PolymarketProvider(get_json=history).price_before("x", cutoff)
+    assert at.timestamp() == 1784545200
+    assert price == .45

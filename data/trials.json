@@ -106,5 +106,34 @@
       "2026-07-20T06:20:41Z",
       null
     ]
+  },
+  {
+    "name": "h4r-lol-polymarket-retrospectivo",
+    "registered_at": "2026-07-20T06:35:00Z",
+    "params": {
+      "classification": "exploratory_retrospective_does_not_replace_h4",
+      "source": "polymarket-clob-prices-history",
+      "market": "resolved_series_moneyline",
+      "closing_cutoff_minutes_before_start": 15,
+      "max_price_age_hours": 48,
+      "min_matches": 50,
+      "edge_threshold": 0.05,
+      "stake": "flat_1_unit_simulated",
+      "model": "elo_reconstructed_from_games_strictly_before_scheduled_at",
+      "default_seed_elo": 1400,
+      "primary_metrics": [
+        "brier_model",
+        "brier_market",
+        "paired_brier_difference",
+        "shadow_roi"
+      ],
+      "uncertainty": "paired_bootstrap_95pct_ci_2000_seed_13"
+    },
+    "sharpe": null,
+    "notes": "Pré-registro H4-R anterior ao cálculo. Inclui todos os eventos LoL encerrados retornados pela fonte com moneyline resolvida, preço histórico <= scheduled_at-15min, idade <=48h e identidade inequívoca no banco local. Sem filtro posterior por liga, favorito ou resultado. Modelo reconstruído somente com mapas de data estritamente anterior ao evento. Sinal shadow quando |p_model-p_market|>=0.05, flat 1 unidade, sem aposta real. SUFICIENTE para descrição se n>=50; resultado permanece exploratório e não reduz o gate prospectivo H4. | RESULTADO: n=177 em 28 competições (2026-05-12..07-20); Brier Elo=0.4320 vs mercado=0.4023; diferença pareada +0.0297, IC95% [-0.0068,+0.0683]. ROI shadow +10.57% em 116 sinais, IC95% [-11.82%,+33.70%]. INCONCLUSIVA: ambos os ICs cruzam zero; ponto estimado de Brier favorece o mercado.",
+    "test_period": [
+      null,
+      "2026-07-20T06:35:00Z"
+    ]
   }
 ]

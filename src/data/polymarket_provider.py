@@ -68,6 +68,7 @@ class PolymarketProvider:
                  get_json: Callable[[str], Any] | None = None):
         self.timeout = timeout
         self._get_json = get_json or self._http_get_json
+        self._dns_cache: dict[str, str] = {}
 
     def _http_get_json(self, url: str) -> Any:
         try:
@@ -91,25 +92,29 @@ class PolymarketProvider:
         if parsed.scheme != "https" or parsed.hostname not in {
                 "gamma-api.polymarket.com", "clob.polymarket.com"}:
             raise ValueError("host não permitido no fallback DoH")
-        dns = httpx.get(
-            "https://1.1.1.1/dns-query",
-            params={"name": parsed.hostname, "type": "A"},
-            headers={"accept": "application/dns-json"}, timeout=self.timeout)
-        dns.raise_for_status()
-        answers = dns.json().get("Answer") or []
-        addresses = []
-        for row in answers:
-            if row.get("type") == 1:
-                address = ipaddress.ip_address(row.get("data", ""))
-                if not address.is_global:
-                    raise ValueError("DoH retornou endereço não público")
-                addresses.append(str(address))
-        if not addresses:
-            raise ValueError("DoH não retornou endereço A")
+        address_text = self._dns_cache.get(parsed.hostname)
+        if address_text is None:
+            dns = httpx.get(
+                "https://1.1.1.1/dns-query",
+                params={"name": parsed.hostname, "type": "A"},
+                headers={"accept": "application/dns-json"}, timeout=self.timeout)
+            dns.raise_for_status()
+            answers = dns.json().get("Answer") or []
+            addresses = []
+            for row in answers:
+                if row.get("type") == 1:
+                    address = ipaddress.ip_address(row.get("data", ""))
+                    if not address.is_global:
+                        raise ValueError("DoH retornou endereço não público")
+                    addresses.append(str(address))
+            if not addresses:
+                raise ValueError("DoH não retornou endereço A")
+            address_text = addresses[0]
+            self._dns_cache[parsed.hostname] = address_text
         result = subprocess.run(
             ["curl", "--fail", "--silent", "--show-error", "--max-time",
              str(max(1, int(self.timeout))), "--resolve",
-             f"{parsed.hostname}:443:{addresses[0]}", url],
+             f"{parsed.hostname}:443:{address_text}", url],
             capture_output=True, text=True, encoding="utf-8", check=True)
         return json.loads(result.stdout)
 
@@ -151,6 +156,53 @@ class PolymarketProvider:
                               "scheduled_at": scheduled.isoformat(timespec="seconds"),
                               "event_id": str(event.get("id"))})
         return sorted(found, key=lambda row: (row["scheduled_at"], row["event_id"]))
+
+    def list_closed_match_events(self, max_events: int = 500) -> list[dict[str, Any]]:
+        """Lista eventos LoL encerrados com moneyline, sem seleção por resultado."""
+        found = []
+        for offset in range(0, max_events, 100):
+            payload = self._get_json(
+                f"{GAMMA}/events?tag_id=65&closed=true&limit=100&offset={offset}"
+                "&order=startTime&ascending=false")
+            if not isinstance(payload, list):
+                raise DataUnavailableError("lista histórica Polymarket inválida")
+            if not payload:
+                break
+            for event in payload:
+                moneylines = [m for m in event.get("markets") or []
+                              if m.get("sportsMarketType") == "moneyline"]
+                if len(moneylines) == 1 and event.get("startTime"):
+                    found.append({**event, "moneyline": moneylines[0]})
+            if len(payload) < 100:
+                break
+        return found
+
+    def price_before(self, token_id: str, cutoff: datetime,
+                     max_age_hours: int = 48) -> tuple[datetime, float]:
+        """Último preço publicado até cutoff, dentro da janela declarada."""
+        if cutoff.tzinfo is None or cutoff.utcoffset() is None:
+            raise ValueError("cutoff deve conter timezone")
+        cutoff = cutoff.astimezone(timezone.utc)
+        start = cutoff - timedelta(hours=max_age_hours)
+        query = urlencode({"market": token_id,
+                           "startTs": int(start.timestamp()),
+                           "endTs": int(cutoff.timestamp()), "fidelity": 1})
+        payload = self._get_json(f"{CLOB}/prices-history?{query}")
+        history = payload.get("history") if isinstance(payload, dict) else None
+        if not isinstance(history, list):
+            raise DataUnavailableError("histórico de preço inválido")
+        valid = []
+        for row in history:
+            try:
+                at = datetime.fromtimestamp(float(row["t"]), timezone.utc)
+                price = float(row["p"])
+            except (KeyError, TypeError, ValueError, OSError):
+                continue
+            if start <= at <= cutoff and math.isfinite(price) and 0 < price < 1:
+                valid.append((at, price))
+        if not valid:
+            raise DataUnavailableError("sem preço histórico elegível antes do cutoff")
+        return max(valid, key=lambda item: item[0])
 
     @staticmethod
     def _midpoint(book: dict[str, Any]) -> tuple[float, float]:

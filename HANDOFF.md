@@ -1,5 +1,20 @@
 # HANDOFF.md — lol-predictor
 
+> ## H4-R RETROSPECTIVA — AMOSTRA SUFICIENTE, INCONCLUSIVA (2026-07-20)
+>
+> Pré-registro separado congelado antes do cálculo; não substitui H4. A API
+> histórica pública do Polymarket forneceu 493 eventos encerrados; 177 foram
+> elegíveis em 28 competições entre 12/05 e 20/07. Exclusões: 281 identidades
+> sem histórico inequívoco, 19 sem preço no cutoff de 48h, 12 sem formato e 4
+> sem resolução binária. Nenhum filtro posterior por resultado.
+>
+> Resultado: Brier Elo **0,4320**, mercado **0,4023**; diferença pareada
+> +0,0297 com IC95% [-0,0068; +0,0683]. ROI flat shadow **+10,57%** em 116
+> sinais, IC95% [-11,82%; +33,70%]. Ambos cruzam zero: **INCONCLUSIVA**. O
+> ponto de Brier favorece o mercado, portanto não há evidência para declarar
+> edge econômico. Artefato versionado em
+> `data/reports/h4r_polymarket_retrospective_2026-07-20.json`.
+>
 > ## SHADOW H4 OPERACIONAL E PRÉ-REGISTRADO (2026-07-20)
 >
 > O bloqueio operacional foi encerrado sem privilégio administrativo: o DNS do
@@ -19,7 +34,7 @@
 > 32 cotações elegíveis, 10 partidas elegíveis, 0 maturadas; `PENDING_SAMPLE`.
 > Equipes de academy/ligas menores sem rating são bloqueadas, não aproximadas.
 > Alias fonte-específico real `Nongshim Red Force → Nongshim RedForce` está em
-> `data/polymarket_aliases.json`. Suíte atual: **79 verdes**, CI 3/3.
+> `data/polymarket_aliases.json`. Suíte após H4-R: **81 verdes**, CI 3/3.
 >
 > ## SCI-7 (LoL) DESBLOQUEADO — fonte de mercado (2026-07-20)
 >
