@@ -11,6 +11,8 @@ import json
 import os
 import sqlite3
 import sys
+import threading
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -23,6 +25,52 @@ from predictor_core.data.contracts import PredictionPoint  # noqa: E402
 from predictor_core.kernel.jsonl_store import JsonlStore  # noqa: E402
 
 DEFAULT_FIXTURE = ROOT / "data" / "fixtures" / "ewc_opening_2026.json"
+_LEDGER_LOCK = threading.Lock()
+
+
+@contextmanager
+def _ledger_file_lock(path: Path):
+    """Protege o ciclo read/dedupe/append sem alterar o core compartilhado."""
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "a+b") as lock:
+        lock.seek(0, os.SEEK_END)
+        if lock.tell() == 0:
+            lock.write(b"0")
+            lock.flush()
+        lock.seek(0)
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            lock.seek(0)
+            if os.name == "nt":
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def _aware_datetime(value: str, field: str) -> datetime:
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be an ISO-8601 string")
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"invalid {field}: {value!r}") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{field} must be timezone-aware")
+    return parsed
+
+
+def _require_aware(value: datetime, field: str) -> datetime:
+    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{field} must be timezone-aware")
+    return value
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -41,9 +89,7 @@ def _match_entries(fixture: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(teams, list) or len(teams) != 2 or not all(isinstance(team, str) for team in teams):
             raise ValueError("each fixture match must contain exactly two team names")
         if scheduled_at is not None:
-            scheduled = datetime.fromisoformat(scheduled_at)
-            if scheduled.tzinfo is None:
-                raise ValueError("scheduled_at must be timezone-aware")
+            _aware_datetime(scheduled_at, "scheduled_at")
         entries.append({"team_a": teams[0], "team_b": teams[1], "scheduled_at": scheduled_at})
     return entries
 
@@ -94,7 +140,7 @@ def _band(probability: float) -> str:
 
 def build(fixture: dict[str, Any], ratings_path: Path | None = None, db_path: Path | None = None) -> dict[str, Any]:
     clear_caches()
-    snapshot = datetime.fromisoformat(fixture["snapshot_at"])
+    snapshot = _aware_datetime(fixture["snapshot_at"], "snapshot_at")
     ratings_path = ratings_path or ROOT / fixture.get(
         "ratings_path", "data/ratings.json")
     db_path = db_path or ROOT / "data" / "lol.db"
@@ -117,7 +163,7 @@ def build(fixture: dict[str, Any], ratings_path: Path | None = None, db_path: Pa
         scheduled_at = entry["scheduled_at"]
         matures_at = None
         if scheduled_at:
-            scheduled = datetime.fromisoformat(scheduled_at)
+            scheduled = _aware_datetime(scheduled_at, "scheduled_at")
             matures_at = (scheduled + timedelta(hours=FORMAT_HOURS[fixture["format"]])).isoformat(timespec="seconds")
         qualities = {a["rating_quality"], b["rating_quality"]}
         limitations = ["Elo H1 only; no Platt, odds, kills, patch, side, draft, roster or manual regional adjustment."]
@@ -135,9 +181,9 @@ def build(fixture: dict[str, Any], ratings_path: Path | None = None, db_path: Pa
     return {"event": fixture["event"], "stage": fixture["stage"], "scheduled_date": fixture["scheduled_date"], "format": fixture["format"], "snapshot_at": fixture["snapshot_at"], "model": "elo-h1-map-win-probability; Platt disabled", "ratings_sha256": digest, "ratings_artifact_sha256": artifact_digest, "ratings_mtime_utc": ratings_mtime, "resolutions": list(resolved.values()), "predictions": predictions}
 
 
-def register_pre_event(report: dict[str, Any], ledger_path: Path, now: datetime | None = None) -> dict[str, int]:
+def _register_pre_event_unlocked(report: dict[str, Any], ledger_path: Path, now: datetime | None = None) -> dict[str, int]:
     """Append idempotent PRE_EVENT records for scheduled, resolvable matches."""
-    emitted_at = now or datetime.now(timezone.utc)
+    emitted_at = _require_aware(now or datetime.now(timezone.utc), "now")
     store = JsonlStore(ledger_path)
     ledger = list(store)
     existing = {row.get("prediction_id") for row in ledger if row.get("prediction_id")}
@@ -161,7 +207,7 @@ def register_pre_event(report: dict[str, Any], ledger_path: Path, now: datetime 
         if prediction_id in existing or match_key in existing_matches:
             skipped += 1
             continue
-        scheduled_at = datetime.fromisoformat(prediction["scheduled_at"])
+        scheduled_at = _aware_datetime(prediction["scheduled_at"], "scheduled_at")
         if emitted_at >= scheduled_at:
             raise ValueError(
                 f"PRE_EVENT blocked at/after scheduled_at for "
@@ -169,7 +215,9 @@ def register_pre_event(report: dict[str, Any], ledger_path: Path, now: datetime 
         pending.append((prediction, prediction_id))
 
     for prediction, prediction_id in pending:
-        matures_at = datetime.fromisoformat(prediction["matures_at"])
+        matures_at = _aware_datetime(prediction["matures_at"], "matures_at")
+        if matures_at <= scheduled_at:
+            raise ValueError("matures_at must be after scheduled_at")
         point = PredictionPoint(
             predicted_at=emitted_at,
             matures_at=matures_at,
@@ -199,9 +247,15 @@ def register_pre_event(report: dict[str, Any], ledger_path: Path, now: datetime 
     return {"registered": registered, "already_present": skipped}
 
 
-def mature_results(ledger_path: Path, results: dict[str, Any], now: datetime | None = None) -> dict[str, int]:
+def register_pre_event(report: dict[str, Any], ledger_path: Path,
+                       now: datetime | None = None) -> dict[str, int]:
+    with _LEDGER_LOCK, _ledger_file_lock(ledger_path):
+        return _register_pre_event_unlocked(report, ledger_path, now)
+
+
+def _mature_results_unlocked(ledger_path: Path, results: dict[str, Any], now: datetime | None = None) -> dict[str, int]:
     """Append idempotent MATURED records after the declared prediction horizon."""
-    observed_at = now or datetime.now(timezone.utc)
+    observed_at = _require_aware(now or datetime.now(timezone.utc), "now")
     store = JsonlStore(ledger_path)
     records = list(store)
     pre_events = {row["prediction_id"]: row for row in records
@@ -237,7 +291,11 @@ def mature_results(ledger_path: Path, results: dict[str, Any], now: datetime | N
         if prediction_id in matured:
             already_present += 1
             continue
-        if observed_at < datetime.fromisoformat(pre_event["matures_at"]):
+        matures_at = _aware_datetime(pre_event.get("matures_at"), "matures_at")
+        scheduled_at = _aware_datetime(pre_event.get("scheduled_at"), "scheduled_at")
+        if matures_at <= scheduled_at:
+            raise ValueError("matures_at must be after scheduled_at")
+        if observed_at < matures_at:
             not_ready += 1
             continue
         winner = result.get("winner")
@@ -267,6 +325,12 @@ def mature_results(ledger_path: Path, results: dict[str, Any], now: datetime | N
         registered += 1
     return {"registered": registered, "already_present": already_present,
             "not_ready": not_ready}
+
+
+def mature_results(ledger_path: Path, results: dict[str, Any],
+                   now: datetime | None = None) -> dict[str, int]:
+    with _LEDGER_LOCK, _ledger_file_lock(ledger_path):
+        return _mature_results_unlocked(ledger_path, results, now)
 
 
 def main(argv: list[str] | None = None) -> int:

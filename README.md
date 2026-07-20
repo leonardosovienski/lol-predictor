@@ -9,10 +9,12 @@
 > apostas** — métrica é probabilística (Fase 1b exigiria fonte de odds).
 > Relatório: `docs/RELATORIO_FASE1.md`. Não é ferramenta de investimento.
 >
-> **Hardening 2026-07-19**: auditoria hostil de identidade/lifecycle/ratings
-> fechou 6 bugs reais (empate/placar inválido em `update_ratings`, KeyError
+> **Hardening 2026-07-19/20**: auditoria hostil de identidade/lifecycle/ratings
+> fechou 12 bugs/lacunas reais (empate/placar inválido em `update_ratings`, KeyError
 > com `ratings_file` customizado, NaN/Inf em ratings, substring ambígua no
-> `resolve_team`, `prediction_id` desconhecido na maturação). Suíte: 65
+> `resolve_team`, `prediction_id` desconhecido na maturação, ausência de
+> normalização Unicode NFC, colisão regional, timestamps, série incompleta e
+> concorrência/atomicidade de ratings e lifecycle). Suíte: 71
 > testes verdes (`tests/test_hostile_audit.py`). Detalhe em `HANDOFF.md`.
 
 Laboratório de previsão de **partidas de League of Legends** (vencedor da

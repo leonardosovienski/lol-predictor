@@ -5,6 +5,7 @@ vendor/ entra no sys.path aqui.
 """
 import json
 import sys
+import unicodedata
 from functools import lru_cache
 from pathlib import Path
 
@@ -48,6 +49,13 @@ def clear_caches() -> None:
     load_rating_names.cache_clear()
 
 
+def _identity_key(value: str) -> str:
+    """Chave Unicode canônica; não aproxima entidades nem remove acentos."""
+    if not isinstance(value, str):
+        raise ValueError(f"nome de time deve ser texto, veio {value!r}")
+    return unicodedata.normalize("NFC", value).strip().casefold()
+
+
 def resolve_team(name: str) -> dict:
     """Nome exato ou substring única → registro do time. Primeiro tenta os
     30 times Tier 1 (teams_lol.json, com região/initial_elo); se não achar,
@@ -57,28 +65,33 @@ def resolve_team(name: str) -> dict:
     com sugestões quando ambíguo/desconhecido (contrato de erro da
     plataforma)."""
     teams = load_teams()
-    low = name.strip().casefold()
-    for t in teams:
-        if t["name"].casefold() == low:
-            return t
+    low = _identity_key(name)
+    if not low:
+        raise ValueError("nome de time vazio")
     rating_names = load_rating_names()
-    for n in rating_names:
-        if n.casefold() == low:
-            canonical = next(
-                (t for t in teams if t["name"].casefold() == n.casefold()),
-                None,
-            )
-            return canonical or {"name": n}
+    exact_teams = [t for t in teams if _identity_key(t["name"]) == low]
+    exact_ratings = [n for n in rating_names if _identity_key(n) == low]
+    # Duas linhas seed com o mesmo nome normalizado (inclusive em regiões
+    # diferentes) são entidades indistinguíveis neste schema: nunca escolha a
+    # primeira silenciosamente. O mesmo vale para duas grafias NFC/NFD no JSON.
+    if len(exact_teams) > 1 or len(exact_ratings) > 1:
+        details = [(t["name"], t.get("region")) for t in exact_teams]
+        raise ValueError(f"identidade de time ambígua para {name!r}: "
+                         f"teams={details}, ratings={exact_ratings}")
+    if exact_teams:
+        return exact_teams[0]
+    if exact_ratings:
+        return {"name": exact_ratings[0]}
 
     # Exact lived names must win before substring matching. Otherwise LOUD
     # resolves to the seeded team Cloud9 merely because it is a substring.
-    hits = [t for t in teams if low in t["name"].casefold()]
-    rhits = [n for n in rating_names if low in n.casefold()]
+    hits = [t for t in teams if low in _identity_key(t["name"])]
+    rhits = [n for n in rating_names if low in _identity_key(n)]
     # um hit único do Top 30 só vence se ratings.json não tiver OUTRA
     # entidade também batendo — senão é ambíguo (família LOUD/Cloud9)
     if len(hits) == 1:
         extra = [n for n in rhits
-                 if n.casefold() != hits[0]["name"].casefold()]
+                 if _identity_key(n) != _identity_key(hits[0]["name"])]
         if not extra:
             return hits[0]
     # 2+ times do Top 30 batendo já é ambíguo — não cair silenciosamente

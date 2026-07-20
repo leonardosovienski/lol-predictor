@@ -14,6 +14,10 @@ baseline agregado declarado no config e nunca consome stats por time.
 """
 import json
 import math
+import os
+import tempfile
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 from statistics import NormalDist
 
@@ -22,6 +26,50 @@ from .config import ROOT, load_config, load_teams, resolve_team
 K_FACTORS = {"bo1": 32, "bo3": 40, "bo5": 48}
 # duração típica de parede de relógio por formato (matures_at do serving)
 FORMAT_HOURS = {"bo1": 1.0, "bo3": 2.5, "bo5": 4.0}
+_RATINGS_LOCK = threading.Lock()
+
+
+@contextmanager
+def _file_lock(path: Path):
+    """Serializa writers locais também entre processos (Windows/POSIX)."""
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "a+b") as lock:
+        lock.seek(0)
+        if lock.tell() == 0:
+            lock.write(b"0")
+            lock.flush()
+        lock.seek(0)
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            lock.seek(0)
+            if os.name == "nt":
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def _atomic_json_write(path: Path, payload: dict[str, float]) -> None:
+    encoded = json.dumps(payload, ensure_ascii=False, indent=2,
+                         allow_nan=False) + "\n"
+    fd, raw_tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp",
+                                   dir=path.parent)
+    tmp = Path(raw_tmp)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def win_probability(elo_a: float, elo_b: float) -> float:
@@ -164,7 +212,8 @@ class EloModel:
                 raise ValueError(
                     f"formato desconhecido: {format!r} (use bo1/bo3/bo5)")
             wins = max(result_a, result_b)
-            if wins > {"bo1": 1, "bo3": 2, "bo5": 3}[fmt]:
+            required_wins = {"bo1": 1, "bo3": 2, "bo5": 3}[fmt]
+            if wins != required_wins or min(result_a, result_b) >= required_wins:
                 raise ValueError(
                     f"placar {result_a}-{result_b} incompatível com {fmt}")
         else:
@@ -174,14 +223,26 @@ class EloModel:
         s_a = 1.0 if result_a > result_b else 0.0
         e_a = win_probability(elo_a, elo_b)
         delta = k * (s_a - e_a)
-        self.ratings[a] = elo_a + delta
-        self.ratings[b] = elo_b - delta
-        self._persistable.update((a, b))
-        persisted = {n: self.ratings[n] for n in sorted(self._persistable)}
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            json.dumps(persisted, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8")
+        with _RATINGS_LOCK, _file_lock(self.path):
+            # Outra instância pode ter atualizado o snapshot desde __init__.
+            # Rebaseia somente os participantes sobre o estado mais recente.
+            if self.path.exists():
+                latest = json.loads(self.path.read_text(encoding="utf-8"))
+                for name, value in latest.items():
+                    rating = float(value)
+                    if not math.isfinite(rating):
+                        raise ValueError(f"rating não finito para {name!r}")
+                    self.ratings[name] = rating
+                    self._persistable.add(name)
+                elo_a, elo_b = self.ratings[a], self.ratings[b]
+                e_a = win_probability(elo_a, elo_b)
+                delta = k * (s_a - e_a)
+            self.ratings[a] = elo_a + delta
+            self.ratings[b] = elo_b - delta
+            self._persistable.update((a, b))
+            persisted = {n: self.ratings[n] for n in sorted(self._persistable)}
+            _atomic_json_write(self.path, persisted)
         return {"team_a": a, "team_b": b, "format": fmt, "k": k,
                 "delta": round(delta, 2),
                 "elo_a": round(self.ratings[a], 1),

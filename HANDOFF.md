@@ -1,5 +1,38 @@
 # HANDOFF.md — lol-predictor
 
+> ## FECHAMENTO DAS PENDÊNCIAS TÉCNICAS (2026-07-20)
+>
+> A pedido do operador, as pendências locais remanescentes foram fechadas:
+> nomes normalizados iguais em regiões diferentes agora falham como identidade
+> ambígua; placar incompleto não é aceito como série final quando o formato é
+> explícito; `snapshot_at`, `scheduled_at`, `matures_at` e `now` exigem ISO-8601
+> válido e timezone, com horizonte posterior ao início; e o ciclo completo de
+> dedupe/append do ledger foi serializado entre threads/processos, impedindo
+> dois registros `MATURED` concorrentes. Tudo permanece no domínio local.
+>
+> Estado final: **71 testes verdes**, CI 3/3 e smoke EWC 8/8. Não restou
+> pendência técnica local conhecida. SCI-7 (odds) continua exclusivamente como
+> dependência externa de dados; patch/roster permanecem limitações declaradas,
+> não entradas parcialmente implementadas.
+>
+> ## COMPLEMENTO DA AUDITORIA FINAL (2026-07-20)
+>
+> A reprodução independente do relatório de 19/07 confirmou as seis
+> correções do commit `d8e7fd2` e encontrou duas lacunas adicionais:
+>
+> 1. Identidade usava `casefold`, mas não normalizava formas Unicode
+>    canonicamente equivalentes (NFC/NFD). `resolve_team` agora cria uma chave
+>    NFC, rejeita entrada vazia/não textual e não remove acentos nem aproxima
+>    organizações distintas.
+> 2. `update_ratings` sobrescrevia `ratings.json` diretamente a partir do
+>    estado em memória. Dois writers podiam perder a atualização um do outro,
+>    e uma interrupção durante a escrita podia truncar o snapshot. Writers
+>    locais agora são serializados entre threads/processos, rebaseiam sobre o
+>    snapshot mais recente e publicam JSON finito por `os.replace` atômico.
+>
+> Suíte intermediária: **67 testes verdes**; CI local 3/3; smoke EWC estrito com os
+> 8 confrontos `PREDICTED`. Artefatos de produção permaneceram intactos.
+>
 > ## 🛡️ AUDITORIA FINAL — hardening de identidade/lifecycle/ratings (2026-07-19)
 >
 > Auditoria hostil dedicada (identidade, patches, lifecycle, ratings) sobre
