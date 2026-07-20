@@ -71,3 +71,10 @@ prospectiva é feita por `scripts/collect_polymarket_shadow.py` em
 Isto remove o bloqueio de fonte. Não antecipa o veredito econômico: ROI/CLV
 continuam sem conclusão até existir amostra prospectiva maturada e um critério
 pré-registrado.
+
+Atualização operacional de 20/07: H4 foi pré-registrada em `data/trials.json`
+depois de 6 probes excluídos. A coleta automática de moneylines conhecidas roda
+a cada 30 minutos pela tarefa `lol-market-shadow`; cada linha congela também a
+probabilidade do Elo e o hash de ratings. O gate exige 50 partidas maturadas,
+30 dias, 3 competições e incerteza bootstrap. O status é consultado com
+`python scripts/market_shadow_status.py` e começa em `PENDING_SAMPLE`.

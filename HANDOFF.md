@@ -1,5 +1,26 @@
 # HANDOFF.md — lol-predictor
 
+> ## SHADOW H4 OPERACIONAL E PRÉ-REGISTRADO (2026-07-20)
+>
+> O bloqueio operacional foi encerrado sem privilégio administrativo: o DNS do
+> roteador (`192.168.100.1`) devolvia NXDOMAIN e a tentativa de mudar o adaptador
+> foi recusada pelo Windows; o provider agora usa fallback restrito DoH
+> (Cloudflare por IP) + `curl --resolve`, preservando TLS/SNI e sem alterar o
+> sistema. Coleta real confirmada.
+>
+> `data/trials.json` contém H4 prospectiva registrada às 06:20:41Z. Os 6 probes
+> anteriores são explicitamente excluídos. Cada observação elegível congela
+> probabilidade do Elo, hash de ratings, book, spread, liquidez e timestamps.
+> Gate: 50 partidas maturadas, 30 sinais, 30 dias e 3 competições; Brier pareado
+> e ROI shadow com IC95%. Sem trading.
+>
+> A tarefa `lol-market-shadow` foi instalada a cada 30 minutos e teve primeira
+> execução `LastTaskResult=0`. Status inicial após as coletas: 38 linhas brutas,
+> 32 cotações elegíveis, 10 partidas elegíveis, 0 maturadas; `PENDING_SAMPLE`.
+> Equipes de academy/ligas menores sem rating são bloqueadas, não aproximadas.
+> Alias fonte-específico real `Nongshim Red Force → Nongshim RedForce` está em
+> `data/polymarket_aliases.json`. Suíte atual: **79 verdes**, CI 3/3.
+>
 > ## SCI-7 (LoL) DESBLOQUEADO — fonte de mercado (2026-07-20)
 >
 > A parte LoL do SCI-7 foi resolvida com Polymarket: Gamma API para descoberta

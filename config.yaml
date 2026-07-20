@@ -46,4 +46,5 @@ market_shadow:
   source_kind: prediction_market
   gamma_url: https://gamma-api.polymarket.com
   clob_url: https://clob.polymarket.com
+  aliases_file: data/polymarket_aliases.json
   output: data/shadow/market_quotes.jsonl

@@ -10,10 +10,14 @@ from __future__ import annotations
 import json
 import math
 import hashlib
+import ipaddress
+import subprocess
+import re
 import unicodedata
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 from urllib.parse import urlencode
+from urllib.parse import urlparse
 
 import httpx
 
@@ -72,7 +76,42 @@ class PolymarketProvider:
             response.raise_for_status()
             return response.json()
         except (httpx.HTTPError, ValueError) as exc:
-            raise DataUnavailableError(f"Polymarket indisponível: {exc}") from exc
+            # Alguns hosts Windows recebem NXDOMAIN do roteador mesmo quando
+            # DNS públicos resolvem. Fallback read-only: DoH por IP + curl
+            # --resolve preserva TLS/SNI sem mudar a configuração do sistema.
+            try:
+                return self._curl_via_doh(url)
+            except (OSError, ValueError, subprocess.SubprocessError) as fallback:
+                raise DataUnavailableError(
+                    f"Polymarket indisponível: {exc}; fallback DoH: {fallback}"
+                ) from fallback
+
+    def _curl_via_doh(self, url: str) -> Any:
+        parsed = urlparse(url)
+        if parsed.scheme != "https" or parsed.hostname not in {
+                "gamma-api.polymarket.com", "clob.polymarket.com"}:
+            raise ValueError("host não permitido no fallback DoH")
+        dns = httpx.get(
+            "https://1.1.1.1/dns-query",
+            params={"name": parsed.hostname, "type": "A"},
+            headers={"accept": "application/dns-json"}, timeout=self.timeout)
+        dns.raise_for_status()
+        answers = dns.json().get("Answer") or []
+        addresses = []
+        for row in answers:
+            if row.get("type") == 1:
+                address = ipaddress.ip_address(row.get("data", ""))
+                if not address.is_global:
+                    raise ValueError("DoH retornou endereço não público")
+                addresses.append(str(address))
+        if not addresses:
+            raise ValueError("DoH não retornou endereço A")
+        result = subprocess.run(
+            ["curl", "--fail", "--silent", "--show-error", "--max-time",
+             str(max(1, int(self.timeout))), "--resolve",
+             f"{parsed.hostname}:443:{addresses[0]}", url],
+            capture_output=True, text=True, encoding="utf-8", check=True)
+        return json.loads(result.stdout)
 
     def health_check(self) -> bool:
         try:
@@ -80,6 +119,38 @@ class PolymarketProvider:
             return isinstance(payload, list) and bool(payload)
         except DataUnavailableError:
             return False
+
+    def list_upcoming_matches(self, horizon_hours: int = 72,
+                              now: datetime | None = None) -> list[dict[str, Any]]:
+        """Descobre moneylines LoL futuras; sem resolver identidade aqui."""
+        observed = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        limit = observed + timedelta(hours=horizon_hours)
+        payload = self._get_json(
+            f"{GAMMA}/events?tag_id=65&active=true&closed=false&limit=500")
+        if not isinstance(payload, list):
+            raise DataUnavailableError("lista de eventos Polymarket inválida")
+        found = []
+        for event in payload:
+            raw = event.get("startTime")
+            try:
+                scheduled = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            except (TypeError, ValueError):
+                continue
+            if scheduled.tzinfo is None:
+                continue
+            scheduled = scheduled.astimezone(timezone.utc)
+            if not observed < scheduled <= limit:
+                continue
+            moneylines = [m for m in event.get("markets") or []
+                          if m.get("sportsMarketType") == "moneyline"]
+            if len(moneylines) != 1:
+                continue
+            outcomes = _array(moneylines[0].get("outcomes"), "outcomes")
+            if len(outcomes) == 2:
+                found.append({"team_a": outcomes[0], "team_b": outcomes[1],
+                              "scheduled_at": scheduled.isoformat(timespec="seconds"),
+                              "event_id": str(event.get("id"))})
+        return sorted(found, key=lambda row: (row["scheduled_at"], row["event_id"]))
 
     @staticmethod
     def _midpoint(book: dict[str, Any]) -> tuple[float, float]:
@@ -96,21 +167,31 @@ class PolymarketProvider:
         return (bid + ask) / 2, ask - bid
 
     def fetch_match(self, team_a: str, team_b: str,
-                    observed_at: datetime | None = None) -> dict[str, Any]:
+                    observed_at: datetime | None = None,
+                    event_id: str | None = None) -> dict[str, Any]:
         if observed_at is not None and (
                 observed_at.tzinfo is None or observed_at.utcoffset() is None):
             raise ValueError("observed_at deve conter timezone")
-        query = urlencode({"q": f"LoL: {team_a} vs {team_b}",
-                           "events_status": "active", "limit_per_type": 20,
-                           "keep_closed_markets": 0})
-        payload = self._get_json(f"{GAMMA}/public-search?{query}")
-        if not isinstance(payload, dict) or not isinstance(payload.get("events"), list):
-            raise DataUnavailableError("resposta de busca Polymarket inválida")
+        if event_id is not None:
+            event = self._get_json(f"{GAMMA}/events/{event_id}")
+            if not isinstance(event, dict):
+                raise DataUnavailableError("evento Polymarket inválido")
+            events = [event]
+        else:
+            query = urlencode({"q": f"LoL: {team_a} vs {team_b}",
+                               "events_status": "active", "limit_per_type": 20,
+                               "keep_closed_markets": 0})
+            payload = self._get_json(f"{GAMMA}/public-search?{query}")
+            if not isinstance(payload, dict) or not isinstance(payload.get("events"), list):
+                raise DataUnavailableError("resposta de busca Polymarket inválida")
+            events = payload["events"]
 
         target = {_key(team_a), _key(team_b)}
         candidates: list[tuple[dict[str, Any], dict[str, Any], list[str], list[str]]] = []
-        for event in payload["events"]:
+        for event in events:
             for market in event.get("markets") or []:
+                if market.get("sportsMarketType") != "moneyline":
+                    continue
                 outcomes = _array(market.get("outcomes"), "outcomes")
                 tokens = _array(market.get("clobTokenIds"), "clobTokenIds")
                 if len(outcomes) == len(tokens) == 2 and {_key(x) for x in outcomes} == target:
@@ -121,6 +202,11 @@ class PolymarketProvider:
                 f"encontrados {len(candidates)}")
 
         event, market, outcomes, tokens = candidates[0]
+        format_match = re.search(r"\(BO([135])\)", market.get("question") or "",
+                                 flags=re.IGNORECASE)
+        if not format_match:
+            raise DataUnavailableError("moneyline sem formato BO1/BO3/BO5")
+        match_format = f"bo{format_match.group(1)}"
         books = [self._get_json(f"{CLOB}/book?{urlencode({'token_id': token})}")
                  for token in tokens]
         # O instante de observação real é posterior à resposta. Em testes e
@@ -161,6 +247,7 @@ class PolymarketProvider:
             "market_id": str(market.get("id")),
             "condition_id": market.get("conditionId"),
             "team_a": team_a, "team_b": team_b,
+            "format": match_format,
             "scheduled_at": scheduled.isoformat(timespec="seconds"),
             "observed_at": observed.isoformat(timespec="seconds"),
             "published_at": published.isoformat(timespec="seconds"),

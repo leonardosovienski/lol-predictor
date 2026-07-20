@@ -99,3 +99,16 @@ python scripts/collect_polymarket_shadow.py "T1" "Gen.G"
 A coleta exige moneyline exato, order book com bid/ask dos dois lados,
 timestamp anterior ao jogo e identidade inequívoca. Polymarket é mercado de
 previsão, não bookmaker; `decimal_a/b` são apenas `1/probabilidade`.
+
+Operação prospectiva:
+
+```powershell
+python scripts/collect_polymarket_upcoming.py --horizon-hours 72
+python scripts/market_shadow_status.py
+powershell -ExecutionPolicy Bypass -File scripts/install_market_shadow_task.ps1 -RunNow
+```
+
+A tarefa `lol-market-shadow` coleta a cada 30 minutos. O pré-registro
+`h4-lol-market-shadow-prospectivo` exclui probes anteriores a 20/07 06:20:41Z,
+exige 50 partidas maturadas, 30 dias, 3 competições e IC bootstrap antes de
+qualquer conclusão. Não existe caminho de aposta real.

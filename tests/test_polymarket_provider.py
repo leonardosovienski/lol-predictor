@@ -12,6 +12,8 @@ EVENT = {
         "id": "e1", "startTime": "2026-07-21T18:00:00Z", "liquidity": 5000,
         "markets": [{
             "id": "m1", "conditionId": "c1", "liquidity": "4000",
+            "question": "LoL: T1 vs Gen.G (BO3) - Test",
+            "sportsMarketType": "moneyline",
             "outcomes": json.dumps(["T1", "Gen.G"]),
             "clobTokenIds": json.dumps(["token-a", "token-b"]),
         }],
@@ -36,6 +38,7 @@ def test_quote_point_in_time_com_proveniencia():
     quote = PolymarketProvider(get_json=transport).fetch_match(
         "T1", "Gen.G", datetime(2026, 7, 20, 13, tzinfo=timezone.utc))
     assert quote["source_kind"] == "prediction_market"
+    assert quote["format"] == "bo3"
     assert quote["read_only"] is True
     assert len(quote["quote_id"]) == 64
     assert quote["probability_a"] == .55
@@ -68,3 +71,19 @@ def test_rejeita_lookahead_e_timestamp_ingenuo():
                              datetime(2026, 7, 22, tzinfo=timezone.utc))
     with pytest.raises(ValueError, match="timezone"):
         provider.fetch_match("T1", "Gen.G", datetime(2026, 7, 20))
+
+
+def test_descobre_apenas_moneyline_futura():
+    payload = [{
+        "id": 1, "startTime": "2026-07-21T18:00:00Z",
+        "markets": [EVENT["events"][0]["markets"][0]],
+    }, {
+        "id": 2, "startTime": "2026-07-19T18:00:00Z",
+        "markets": [EVENT["events"][0]["markets"][0]],
+    }]
+    provider = PolymarketProvider(get_json=lambda _url: payload)
+    rows = provider.list_upcoming_matches(
+        horizon_hours=48, now=datetime(2026, 7, 20, 13, tzinfo=timezone.utc))
+    assert rows == [{"team_a": "T1", "team_b": "Gen.G",
+                     "scheduled_at": "2026-07-21T18:00:00+00:00",
+                     "event_id": "1"}]

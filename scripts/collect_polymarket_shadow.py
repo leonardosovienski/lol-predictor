@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -16,6 +17,7 @@ from predictor_core.data.contracts import DataUnavailableError  # noqa: E402
 from predictor_core.kernel.jsonl_store import JsonlStore  # noqa: E402
 from src.config import resolve_team  # noqa: E402
 from src.data.polymarket_provider import PolymarketProvider  # noqa: E402
+from src.model import EloModel  # noqa: E402
 
 
 @contextmanager
@@ -54,6 +56,19 @@ def append_once(path: Path, quote: dict) -> bool:
         return True
 
 
+def attach_model_snapshot(quote: dict) -> dict:
+    """Congela a previsão e o hash exato de ratings junto da cotação."""
+    model = EloModel()
+    prediction = model.predict_match(
+        quote["team_a"], quote["team_b"], quote["format"])
+    ratings_sha256 = hashlib.sha256(model.path.read_bytes()).hexdigest()
+    return {**quote,
+            "model_probability_a": prediction["prob_team_a"],
+            "model_probability_b": prediction["prob_team_b"],
+            "model_name": prediction["model"],
+            "ratings_sha256": ratings_sha256}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Collect one PRE_EVENT LoL market quote")
     parser.add_argument("team_a")
@@ -66,7 +81,8 @@ def main(argv: list[str] | None = None) -> int:
         team_b = resolve_team(args.team_b)["name"]
         if team_a == team_b:
             raise ValueError("um time não joga contra si mesmo")
-        quote = PolymarketProvider().fetch_match(team_a, team_b)
+        quote = attach_model_snapshot(
+            PolymarketProvider().fetch_match(team_a, team_b))
         appended = append_once(args.output, quote)
     except (DataUnavailableError, OSError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
