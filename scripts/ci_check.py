@@ -19,6 +19,8 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 failures: list[str] = []
 
 
@@ -102,6 +104,17 @@ def check_critical_files() -> None:
     tmp = Path(tempfile.gettempdir())
     env["PREDICTIONS_LOG_PATH"] = str(tmp / "lol_ci_smoke_pred.jsonl")
     env["PREDICTOR_EVENTS_PATH"] = str(tmp / "lol_ci_smoke_events.jsonl")
+    # The CLI is fail-closed without a published source snapshot.  CI creates
+    # a disposable, valid fixture rather than weakening that production gate.
+    from src.data.ingestion import SnapshotStore
+    fixture_root = Path(tempfile.mkdtemp(prefix="lol-ci-ingestion-"))
+    fixture_csv = fixture_root / "oracle.csv"
+    fixture_csv.write_text(
+        "gameid,league,teamname,date,result\n"
+        "ci-1,LCK,T1,2026-07-21,1\nci-2,LCK,Gen.G,2026-07-21,0\n",
+        encoding="utf-8")
+    SnapshotStore(fixture_root / "ingestion").publish(fixture_csv, source="ci-fixture")
+    env["LOL_INGESTION_ROOT"] = str(fixture_root / "ingestion")
     r = subprocess.run([sys.executable, "-X", "utf8", "-m", "src.predict",
                         "T1", "Gen.G", "--format", "bo3", "--json"],
                        cwd=ROOT, capture_output=True, text=True,

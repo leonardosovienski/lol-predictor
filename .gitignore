@@ -10,6 +10,7 @@
 /data/calibration.json
 /data/walkforward_summary.json
 /data/raw/
+/data/ingestion/
 /data/shadow/
 /logs/operations/
 /data/lol.db*

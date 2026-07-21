@@ -14,6 +14,8 @@ PARES = [("T1", "Gen.G"), ("Bilibili Gaming", "G2 Esports"),
 def _isolado(tmp_path, monkeypatch):
     monkeypatch.setenv("PREDICTIONS_LOG_PATH", str(tmp_path / "pred.jsonl"))
     monkeypatch.setenv("PREDICTOR_EVENTS_PATH", str(tmp_path / "events.jsonl"))
+    # Unit tests here exercise Elo serving; freshness is covered independently.
+    monkeypatch.setattr(predict, "assert_fresh_snapshot", lambda *_args, **_kwargs: {})
     yield
 
 

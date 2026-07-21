@@ -10,11 +10,21 @@ import sys
 from . import db
 from .config import ROOT, load_config
 from .data.riot_provider import OracleProvider
+from .data.ingestion import SnapshotStore, assert_fresh_snapshot
 
 
 def run() -> None:
     cfg = load_config()
-    provider = OracleProvider(ROOT / "data" / "raw",
+    ingestion = cfg.get("ingestion", {})
+    snapshot_root = ROOT / ingestion.get("snapshot_dir", "data/ingestion")
+    # The ratings refresh must never silently consume a raw cache whose
+    # provenance/freshness is unknown. Historical raw files remain only an
+    # input to local replay and are not the weekly serving source.
+    assert_fresh_snapshot(snapshot_root, max_age_hours=int(ingestion.get("max_staleness_hours", 192)))
+    payload = SnapshotStore(snapshot_root).current_payload()
+    if payload is None:  # guarded above; helps static readers and error clarity
+        raise RuntimeError("snapshot Oracle ativo ausente")
+    provider = OracleProvider(payload.parent,
                               leagues=cfg.get("oracle", {}).get("leagues"))
     if not provider.health_check():
         sys.exit("data/raw sem CSVs — baixe do Drive do Oracle's Elixir")

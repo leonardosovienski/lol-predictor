@@ -17,6 +17,7 @@ WORKSPACE = ROOT.parent
 if str(WORKSPACE) not in sys.path:
     sys.path.insert(0, str(WORKSPACE))
 from tools.secret_redaction import collect_sensitive_values, safe_redact_text
+from src.data.ingestion import ConditionalDownloader, DownloadPolicy, IngestionError, SnapshotStore
 
 SENSITIVE_VALUES = collect_sensitive_values()
 PARTIAL_EXIT = 10
@@ -49,7 +50,8 @@ def _valid_oracles_csv(path: Path) -> bool:
     if not path.is_file() or path.stat().st_size < 1_000_000:
         return False
     try:
-        header = path.open("r", encoding="utf-8-sig", errors="strict").readline().casefold()
+        with path.open("r", encoding="utf-8-sig", errors="strict") as handle:
+            header = handle.readline().casefold()
     except (OSError, UnicodeError):
         return False
     return "gameid" in header and "league" in header and "teamname" in header
@@ -65,7 +67,7 @@ def _max_game_date(path: Path) -> str | None:
         return None
 
 
-def download_csv(year: int) -> bool:
+def _download_csv_legacy(year: int) -> bool:
     urls = _download_urls(year)
     if not urls:
         log(f"  [download] sem fonte configurada para {year}")
@@ -97,6 +99,30 @@ def download_csv(year: int) -> bool:
             temporary.unlink(missing_ok=True)
     if _valid_oracles_csv(destination):
         log("  [download] todas as fontes falharam; cache anterior válido preservado")
+    return False
+
+
+def download_csv(year: int) -> bool:
+    """Fetch into immutable snapshots; legacy raw files are never overwritten."""
+    urls = _download_urls(year)
+    if not urls:
+        log(f"  [download] sem fonte configurada para {year}")
+        return False
+    store = SnapshotStore(ROOT / "data" / "ingestion")
+    policy = DownloadPolicy(timeout_seconds=30, max_attempts=3, max_execution_seconds=90)
+    for source_number, url in enumerate(urls, start=1):
+        try:
+            status, metadata = ConditionalDownloader(
+                store, policy=policy, opener=urllib.request.urlopen).fetch(url)
+            if status == "PUBLISHED":
+                log(f"  [download] snapshot publicado: {metadata['sha256'][:12]} (fonte {source_number})")
+            else:
+                log(f"  [download] fonte {source_number}: 304; snapshot vigente preservado")
+            return True
+        except IngestionError as exc:
+            log(f"  [download] fonte {source_number} FALHOU: {exc}")
+    if store.current_payload() is not None:
+        log("  [download] todas as fontes falharam; snapshot anterior válido preservado")
     return False
 
 

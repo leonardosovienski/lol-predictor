@@ -17,6 +17,7 @@ from pathlib import Path
 
 from .config import ROOT, load_config           # injeta vendor/ no sys.path
 from .model import FORMAT_HOURS, EloModel
+from .data.ingestion import IngestionError, assert_fresh_snapshot
 
 from predictor_core.data.contracts import PredictionPoint
 from predictor_core.kernel.obs import emit_event
@@ -35,6 +36,13 @@ def run(team_a: str, team_b: str, *, fmt: str = "bo3",
         market: str = "winner", kills_line: float | None = None,
         now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
+    cfg = load_config()
+    ingestion = cfg.get("ingestion", {})
+    configured_root = os.environ.get("LOL_INGESTION_ROOT")
+    snapshot_root = (Path(configured_root).expanduser() if configured_root
+                     else ROOT / ingestion.get("snapshot_dir", "data/ingestion"))
+    assert_fresh_snapshot(snapshot_root,
+                          max_age_hours=int(ingestion.get("max_staleness_hours", 192)), now=now)
     model = EloModel()
     r = model.predict_match(team_a, team_b, fmt)
     kills = model.predict_kills_total(team_a, team_b, kills_line)
@@ -88,7 +96,7 @@ def main(argv=None) -> int:
     try:
         r = run(args.team_a, args.team_b, fmt=fmt, market=args.market,
                 kills_line=args.kills_line)
-    except ValueError as e:
+    except (ValueError, IngestionError) as e:
         print(str(e), file=sys.stderr)
         return 2
 

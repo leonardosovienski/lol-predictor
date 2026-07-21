@@ -29,6 +29,13 @@ oracle:
   leagues: ["LCK", "LPL", "LEC", "LCS", "LTA", "LTA N", "LTA S",
             "MSI", "WLDs", "FST", "EWC"]
 
+# Ingestão resiliente: o job roda semanalmente; 8 dias = período + 24h de
+# tolerância operacional. O serving falha fechado sem snapshot publicado,
+# íntegro e dentro desta janela. Artefatos runtime ficam em data/ingestion/.
+ingestion:
+  snapshot_dir: data/ingestion
+  max_staleness_hours: 192
+
 # Fase 1 — backtest prequential
 backtest:
   burnin_days: 90           # ratings convergem da semente antes de medir
