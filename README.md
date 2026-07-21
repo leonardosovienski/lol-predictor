@@ -8,6 +8,13 @@ configurados nunca são usados silenciosamente. O bucket S3 publicado pela
 própria API do Oracle's Elixir também é tentado, mas um arquivo com data máxima
 anterior à do cache local é rejeitado para impedir redução silenciosa da amostra.
 
+**Ingestão resiliente (2026-07-21):** o download agora usa ETag/Last-Modified,
+retry limitado, validação de conteúdo e snapshots imutáveis em runtime. O
+serving falha fechado quando não há snapshot publicado e com menos de 192 h;
+não usa silenciosamente um CSV raw expirado. Consulte
+[`docs/INGESTION_RESILIENCE.md`](docs/INGESTION_RESILIENCE.md) para o contrato,
+tentativas históricas e runbook.
+
 > **Status: Fase 1 CONCLUÍDA (2026-07-11).** Backtest prequential sobre
 > 3.877 mapas do Oracle's Elixir: **H1 (Elo vencedor) COMPROVADA** (Brier
 > 0,4432 vs banda 0,4612, acerto 64,6%, DM p=0,0006) e **H2 (abates por time)

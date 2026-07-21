@@ -1,0 +1,9 @@
+# Copie os valores para config.yaml; não use esta amostra como arquivo runtime.
+ingestion:
+  # Weekly schedule plus one operational grace day.
+  snapshot_dir: data/ingestion
+  max_staleness_hours: 192
+
+# A fonte alternativa só é lida quando declarada explicitamente no ambiente:
+# ORACLES_ELIXIR_2026_URL=https://approved.example/2026.csv
+# Não registre tokens, cookies ou URLs privadas neste arquivo.

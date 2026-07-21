@@ -1,5 +1,17 @@
 # HANDOFF.md — lol-predictor
 
+> ## INGESTÃO RESILIENTE — FECHADA LOCALMENTE (2026-07-21)
+>
+> Oracle's Elixir agora percorre origem -> cache condicional -> temporário ->
+> validação -> snapshot imutável -> ponteiro atômico -> ingest/serving. O CLI
+> bloqueia sem `data/ingestion/current.json` válido, SHA compatível e idade <=
+> 192 h (ciclo semanal + 24 h). `data/raw/` é legado de replay, não é mais
+> publicado pelo refresh. Retry é limitado (3/90 s), 429 respeita Retry-After
+> limitado e 304 preserva o snapshot. Cobertura hostil inclui HTML, schema,
+> timestamps, 429/500/timeout, interrupção e concorrência. Sem mudança no core,
+> lifecycle, patch/roster ou regras científicas. Documento/runbook:
+> `docs/INGESTION_RESILIENCE.md`.
+
 > ## H4-R RETROSPECTIVA — AMOSTRA SUFICIENTE, INCONCLUSIVA (2026-07-20)
 >
 > Pré-registro separado congelado antes do cálculo; não substitui H4. A API
