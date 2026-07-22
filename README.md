@@ -128,6 +128,12 @@ A tarefa `lol-market-shadow` coleta a cada 30 minutos. O pré-registro
 exige 50 partidas maturadas, 30 dias, 3 competições e IC bootstrap antes de
 qualquer conclusão. Não existe caminho de aposta real.
 
+A coorte H4 auditável usa `data/shadow/h4_signals.jsonl`, não promove cotações
+legadas sem competição e provenance completas, e exige resultado oficial antes
+de contar maturação. Rode `python scripts/market_shadow_status.py`; o avaliador
+`scripts/evaluate_h4_gate.py` só aceita `READY_FOR_EVALUATION`. Mesmo o máximo
+veredito (`GATE_PASSED_FOR_PROSPECTIVE_SHADOW`) não habilita dinheiro real.
+
 Backtest separado H4‑R (não conta no gate prospectivo):
 
 ```powershell

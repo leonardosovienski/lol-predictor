@@ -1,5 +1,13 @@
 # HANDOFF.md — lol-predictor
 
+> ## H4 — COORTE E AVALIADOR AUDITÁVEIS (2026-07-22)
+>
+> A coorte H4 nova registra somente sinais completos (`lol-h4-signal/1.0`),
+> com competição, commit, snapshot/provenance, um sinal por evento e resultado
+> oficial. O status aplica todos os mínimos e bloqueia schema, temporalidade,
+> snapshot e versão de modelo. O avaliador é determinístico e publica o gate
+> atomicamente; o máximo resultado é shadow, pois `betting.py` mantém NO-GO.
+
 > ## INGESTÃO RESILIENTE — FECHADA LOCALMENTE (2026-07-21)
 >
 > Oracle's Elixir agora percorre origem -> cache condicional -> temporário ->
