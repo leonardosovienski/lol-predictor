@@ -136,4 +136,25 @@
       "2026-07-20T06:35:00Z"
     ]
   }
+  ,{
+    "name": "h4-lol-market-shadow-prospectivo-v2",
+    "registered_at": "2026-07-22T13:00:00Z",
+    "params": {
+      "source": "polymarket-clob", "source_kind": "prediction_market",
+      "market": "series_moneyline", "mode": "shadow_read_only_no_trading",
+      "collection_start_exclusive": "2026-07-22T13:00:00Z",
+      "closing_cutoff_minutes_before_start": 15, "max_spread": 0.1,
+      "min_liquidity": 1000, "min_matured_matches": 50,
+      "min_shadow_signals": 30, "min_calendar_days": 30,
+      "min_competitions": 3, "edge_threshold": 0.05,
+      "stake": "flat_1_unit_simulated", "model": "elo-fase0-series-probability",
+      "market_probability": "normalized_clob_midpoint",
+      "primary_metric": "paired_brier_model_minus_market",
+      "economic_metric": "flat_stake_shadow_roi",
+      "uncertainty": "paired_bootstrap_95pct_ci"
+    },
+    "sharpe": null,
+    "notes": "H4-v2 substitui a coorte prospectiva anterior somente para decisão: a auditoria de 2026-07-22 demonstrou que as cotações anteriores não tinham competição/evento/provenance/resultados completos. Critérios idênticos, coorte nova, sem trading.",
+    "test_period": ["2026-07-22T13:00:00Z", null]
+  }
 ]

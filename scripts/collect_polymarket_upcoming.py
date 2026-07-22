@@ -17,7 +17,7 @@ from src.data.polymarket_provider import PolymarketProvider  # noqa: E402
 from scripts.collect_polymarket_shadow import append_once, attach_model_snapshot  # noqa: E402
 from src.h4_gate import H4Error, build_signal  # noqa: E402
 
-TRIAL_ID = "h4-lol-market-shadow-prospectivo"
+TRIAL_ID = "h4-lol-market-shadow-prospectivo-v2"
 
 
 def _commit() -> str:

@@ -7,7 +7,7 @@ from src.h4_gate import H4Error, build_signal, cohort_status, evaluate
 
 
 def _trial(path):
-    path.write_text(json.dumps([{"name": "h4-lol-market-shadow-prospectivo", "registered_at": "2026-07-20T00:00:00Z", "params": {
+    path.write_text(json.dumps([{"name": "h4-lol-market-shadow-prospectivo-v2", "registered_at": "2026-07-20T00:00:00Z", "params": {
         "collection_start_exclusive": "2026-07-20T00:00:00Z", "min_matured_matches": 50,
         "min_calendar_days": 30, "min_shadow_signals": 30, "min_competitions": 3,
     }}]), encoding="utf-8")
@@ -16,7 +16,7 @@ def _trial(path):
 def _signal(index=0, *, competition="c1", settled=True):
     start = datetime(2026, 7, 21, tzinfo=timezone.utc) + timedelta(minutes=index)
     quote = {"event_id": f"e{index}", "team_a": "T1", "team_b": "Gen.G", "observed_at": (start-timedelta(hours=2)).isoformat(), "published_at": (start-timedelta(hours=3)).isoformat(), "scheduled_at": start.isoformat(), "model_probability_a": .6, "model_probability_b": .4, "probability_a": .5, "probability_b": .5, "decimal_a": 2., "decimal_b": 2., "ratings_sha256": "a"*64, "source": "fixture", "market_id": f"m{index}", "condition_id": f"c{index}", "format": "bo3", "model_name": "elo-h1"}
-    row = build_signal(quote, trial_id="h4-lol-market-shadow-prospectivo", code_commit="b"*40, competition_id=competition, competition_name=competition, region="KR", tournament="fixture", split=None, patch=None)
+    row = build_signal(quote, trial_id="h4-lol-market-shadow-prospectivo-v2", code_commit="b"*40, competition_id=competition, competition_name=competition, region="KR", tournament="fixture", split=None, patch=None)
     if settled: row.update({"result": index % 2, "result_available_at": (start+timedelta(hours=3)).isoformat(), "settlement_status": "OFFICIAL"})
     return row
 

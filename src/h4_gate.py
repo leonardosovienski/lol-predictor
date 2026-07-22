@@ -112,7 +112,7 @@ def build_signal(quote: dict[str, Any], *, trial_id: str, code_commit: str,
 
 def _trial(trials_path: Path) -> dict[str, Any]:
     return next(row for row in json.loads(trials_path.read_text(encoding="utf-8"))
-                if row["name"] == "h4-lol-market-shadow-prospectivo")
+                if row["name"] == "h4-lol-market-shadow-prospectivo-v2")
 
 
 def _rows(path: Path) -> list[dict[str, Any]]:

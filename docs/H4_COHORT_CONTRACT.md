@@ -25,6 +25,10 @@ horários disponíveis/preditos/início, probabilidades, odds e provenance hash.
 Ausência de campo, schema drift, duplicidade, mudança de modelo, snapshot
 inválido, lookahead ou evento sem resultado oficial bloqueia a qualidade.
 
+A coorte decisória é `h4-lol-market-shadow-prospectivo-v2`, registrada em
+2026-07-22T13:00:00Z. A H4 original e suas cotações permanecem preservadas como
+telemetria, mas não atendem ao contrato novo e não contam para V2.
+
 O status só fica `READY_FOR_EVALUATION` com 50 eventos liquidados, 30 dias,
 30 sinais e 3 competições. O avaliador calcula Brier, diferença pareada,
 log-loss, calibração, ROI, IC bootstrap por evento, HHI, cobertura e drawdown;
