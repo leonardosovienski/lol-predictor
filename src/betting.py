@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import json, os, uuid
 from pathlib import Path
 from .config import ROOT
+from .manual_approval import bet_fingerprint, require_manual_approval
 
 KELLY_SHRINK = 0.25
 KELLY_CAP = 0.02
@@ -27,9 +28,15 @@ def go_gate(path: str | Path | None = None) -> dict:
 
 def record_bet(*, selection: str, prob_model: float, decimal_odds: float,
                bankroll: float, real: bool=False, event_id: str|None=None,
-               path: str|Path|None=None, gate_path: str|Path|None=None, **metadata) -> dict:
-    if real and go_gate(gate_path)["decision"] != "GO":
-        raise PermissionError("aposta real bloqueada pelo gate financeiro")
+               path: str|Path|None=None, gate_path: str|Path|None=None,
+               approval_path: str|Path|None=None, **metadata) -> dict:
+    if real:
+        if go_gate(gate_path)["decision"] != "GO":
+            raise PermissionError("aposta real bloqueada pelo gate financeiro")
+        metadata={**metadata,"manual_approval":require_manual_approval(
+            approval_path, fingerprint=bet_fingerprint(market="moneyline",
+            selection=selection,prob_model=prob_model,decimal_odds=decimal_odds,
+            bankroll=bankroll))}
     stake=kelly_stake(prob_model,decimal_odds,bankroll)
     row={"id":str(uuid.uuid4()),"event":"bet","domain":"lol",
          "created_at":datetime.now(timezone.utc).isoformat(timespec="seconds"),
