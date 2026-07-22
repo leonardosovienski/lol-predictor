@@ -84,9 +84,10 @@ def test_descobre_apenas_moneyline_futura():
     provider = PolymarketProvider(get_json=lambda _url: payload)
     rows = provider.list_upcoming_matches(
         horizon_hours=48, now=datetime(2026, 7, 20, 13, tzinfo=timezone.utc))
-    assert rows == [{"team_a": "T1", "team_b": "Gen.G",
-                     "scheduled_at": "2026-07-21T18:00:00+00:00",
-                     "event_id": "1"}]
+    assert len(rows) == 1
+    assert {"team_a": "T1", "team_b": "Gen.G",
+            "scheduled_at": "2026-07-21T18:00:00+00:00",
+            "event_id": "1"}.items() <= rows[0].items()
 
 
 def test_preco_historico_respeita_cutoff():

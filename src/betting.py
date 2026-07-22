@@ -20,11 +20,13 @@ def go_gate(path: str | Path | None = None) -> dict:
     if not artifact.exists():
         return {"decision":"NO-GO","reason":"market_gate.json ausente; amostra financeira não avaliada"}
     data=json.loads(artifact.read_text(encoding="utf-8"))
-    ready=(data.get("verdict") in {"GO","COMPROVADA"}
+    ready=(data.get("verdict") == "GATE_PASSED_FOR_PROSPECTIVE_SHADOW"
            and data.get("matured_matches",0) >= data.get("required_matured_matches",50)
            and data.get("calendar_days",0) >= data.get("required_calendar_days",30))
-    return {"decision":"GO" if ready else "NO-GO",
-            "reason":"gate financeiro aprovado" if ready else "amostra financeira/gate insuficiente"}
+    # H4 can validate a prospective *shadow* cohort only. It never grants
+    # permission to transmit or fund a real order.
+    return {"decision":"NO-GO",
+            "reason":"shadow aprovado; operação financeira continua desabilitada" if ready else "amostra financeira/gate insuficiente"}
 
 def record_bet(*, selection: str, prob_model: float, decimal_odds: float,
                bankroll: float, real: bool=False, event_id: str|None=None,

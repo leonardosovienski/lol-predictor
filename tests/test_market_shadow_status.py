@@ -1,37 +1,59 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from scripts.market_shadow_status import status
+import pytest
+
+from src.h4_gate import H4Error, build_signal, cohort_status, evaluate
 
 
-def test_status_exclui_probe_e_escolhe_ultima_cotacao(tmp_path):
-    trials = tmp_path / "trials.json"
-    trials.write_text(json.dumps([{
-        "name": "h4-lol-market-shadow-prospectivo",
-        "registered_at": "2026-07-20T10:00:00Z",
-        "params": {"collection_start_exclusive": "2026-07-20T10:00:00Z",
-                   "closing_cutoff_minutes_before_start": 15,
-                   "max_spread": .1, "min_liquidity": 1000,
-                   "min_matured_matches": 50, "min_calendar_days": 30},
-    }]), encoding="utf-8")
-    base = {"condition_id": "c1", "published_at": "2026-07-20T11:00:00+00:00",
-            "scheduled_at": "2026-07-21T11:00:00+00:00", "max_spread": .02,
-            "liquidity": 2000, "model_probability_a": .6,
-            "model_probability_b": .4, "ratings_sha256": "x"}
-    quotes = tmp_path / "quotes.jsonl"
-    rows = [
-        {**base, "observed_at": "2026-07-20T09:00:00+00:00",
-         "published_at": "2026-07-20T09:00:00+00:00"},
-        {**base, "observed_at": "2026-07-20T11:00:00+00:00"},
-        {**base, "observed_at": "2026-07-20T12:00:00+00:00",
-         "published_at": "2026-07-20T12:00:00+00:00"},
-    ]
-    quotes.write_text("\n".join(json.dumps(row) for row in rows) + "\n",
-                      encoding="utf-8")
-    report = status(quotes, trials,
-                    now=datetime(2026, 7, 22, tzinfo=timezone.utc))
-    assert report["raw_quotes"] == 3
-    assert report["eligible_quotes"] == 2
-    assert report["eligible_matches"] == 1
-    assert report["matured_matches"] == 1
-    assert report["verdict"] == "PENDING_SAMPLE"
+def _trial(path):
+    path.write_text(json.dumps([{"name": "h4-lol-market-shadow-prospectivo", "registered_at": "2026-07-20T00:00:00Z", "params": {
+        "collection_start_exclusive": "2026-07-20T00:00:00Z", "min_matured_matches": 50,
+        "min_calendar_days": 30, "min_shadow_signals": 30, "min_competitions": 3,
+    }}]), encoding="utf-8")
+
+
+def _signal(index=0, *, competition="c1", settled=True):
+    start = datetime(2026, 7, 21, tzinfo=timezone.utc) + timedelta(minutes=index)
+    quote = {"event_id": f"e{index}", "team_a": "T1", "team_b": "Gen.G", "observed_at": (start-timedelta(hours=2)).isoformat(), "published_at": (start-timedelta(hours=3)).isoformat(), "scheduled_at": start.isoformat(), "model_probability_a": .6, "model_probability_b": .4, "probability_a": .5, "probability_b": .5, "decimal_a": 2., "decimal_b": 2., "ratings_sha256": "a"*64, "source": "fixture", "market_id": f"m{index}", "condition_id": f"c{index}", "format": "bo3", "model_name": "elo-h1"}
+    row = build_signal(quote, trial_id="h4-lol-market-shadow-prospectivo", code_commit="b"*40, competition_id=competition, competition_name=competition, region="KR", tournament="fixture", split=None, patch=None)
+    if settled: row.update({"result": index % 2, "result_available_at": (start+timedelta(hours=3)).isoformat(), "settlement_status": "OFFICIAL"})
+    return row
+
+
+def _write(path, rows): path.write_text("\n".join(json.dumps(x) for x in rows)+"\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize("rows,now,state", [
+    (49, datetime(2026, 8, 21, tzinfo=timezone.utc), "WAITING_FOR_MATURED_EVENTS"),
+    (50, datetime(2026, 8, 18, tzinfo=timezone.utc), "WAITING_FOR_TIME_WINDOW"),
+])
+def test_h4_count_and_time_gates(tmp_path, rows, now, state):
+    trials, signals = tmp_path/"trials.json", tmp_path/"signals.jsonl"; _trial(trials); _write(signals, [_signal(i, competition=f"c{i%3}") for i in range(rows)])
+    assert cohort_status(signals, trials, now=now)["state"] == state
+
+
+def test_h4_quality_blocks_missing_result_duplicate_model_and_provenance(tmp_path):
+    trials, signals = tmp_path/"trials.json", tmp_path/"signals.jsonl"; _trial(trials)
+    bad = _signal(); bad["competition_id"] = ""
+    _write(signals, [bad])
+    assert cohort_status(signals, trials, now=datetime(2026, 8, 21, tzinfo=timezone.utc))["state"] == "DATA_QUALITY_BLOCKED"
+    with pytest.raises(H4Error): build_signal({}, trial_id="x", code_commit="x", competition_id="", competition_name="", region=None, tournament=None, split=None, patch=None)
+
+
+def test_h4_ready_evaluates_deterministically_and_gate_is_atomic(tmp_path):
+    trials, signals, out = tmp_path/"trials.json", tmp_path/"signals.jsonl", tmp_path/"market_gate.json"; _trial(trials)
+    _write(signals, [_signal(i, competition=f"c{i%3}") for i in range(50)])
+    now = datetime(2026, 8, 21, tzinfo=timezone.utc)
+    assert cohort_status(signals, trials, now=now)["state"] == "READY_FOR_EVALUATION"
+    one = evaluate(signals, trials, out, now=now, code_commit="c"*40)
+    two = evaluate(signals, trials, out, now=now, code_commit="c"*40)
+    assert one["bootstrap"] == two["bootstrap"]
+    assert json.loads(out.read_text())["schema_version"] == "lol-h4-market-gate/1.0"
+    assert {"brier_model", "paired_brier_difference", "shadow_roi", "hhi", "max_drawdown_units"} <= set(one)
+
+
+def test_h4_past_event_without_official_result_is_not_matured(tmp_path):
+    trials, signals = tmp_path/"trials.json", tmp_path/"signals.jsonl"; _trial(trials); _write(signals, [_signal(0, settled=False)])
+    report = cohort_status(signals, trials, now=datetime(2026, 8, 21, tzinfo=timezone.utc))
+    assert report["state"] == "DATA_QUALITY_BLOCKED" and report["matured_matches"] == 0

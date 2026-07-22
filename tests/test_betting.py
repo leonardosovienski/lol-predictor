@@ -13,13 +13,13 @@ def test_real_bet_fails_closed_without_approved_sample(tmp_path):
         record_bet(selection='T1',prob_model=.6,decimal_odds=2,bankroll=1000,
                    real=True,path=tmp_path/'bets',gate_path=tmp_path/'missing')
 
-def test_gate_requires_sample_and_calendar(tmp_path):
-    gate=tmp_path/'gate.json'; gate.write_text(json.dumps({'verdict':'GO','matured_matches':50,
+def test_gate_never_enables_financial_operation(tmp_path):
+    gate=tmp_path/'gate.json'; gate.write_text(json.dumps({'verdict':'GATE_PASSED_FOR_PROSPECTIVE_SHADOW','matured_matches':50,
       'required_matured_matches':50,'calendar_days':30,'required_calendar_days':30}))
-    assert go_gate(gate)['decision']=='GO'
+    assert go_gate(gate)['decision']=='NO-GO'
 
-def test_real_bet_requires_matching_manual_approval(tmp_path):
-    gate=tmp_path/'gate.json'; gate.write_text(json.dumps({'verdict':'GO','matured_matches':50,'required_matured_matches':50,'calendar_days':30,'required_calendar_days':30}))
+def test_real_bet_stays_blocked_even_with_manual_approval(tmp_path):
+    gate=tmp_path/'gate.json'; gate.write_text(json.dumps({'verdict':'GATE_PASSED_FOR_PROSPECTIVE_SHADOW','matured_matches':50,'required_matured_matches':50,'calendar_days':30,'required_calendar_days':30}))
     approval=tmp_path/'approval.json'; approval.write_text(json.dumps({'schema_version':1,'status':'APPROVED','approval_id':'manual-1','approved_by':'operator','approved_at':'2020-01-01T00:00:00+00:00','expires_at':'2099-01-01T00:00:00+00:00','bet_fingerprint':bet_fingerprint(market='moneyline',selection='T1',prob_model=.6,decimal_odds=2,bankroll=1000)}))
-    bet=record_bet(selection='T1',prob_model=.6,decimal_odds=2,bankroll=1000,real=True,path=tmp_path/'bets',gate_path=gate,approval_path=approval)
-    assert bet['manual_approval']['approval_id']=='manual-1'
+    with pytest.raises(PermissionError):
+        record_bet(selection='T1',prob_model=.6,decimal_odds=2,bankroll=1000,real=True,path=tmp_path/'bets',gate_path=gate,approval_path=approval)

@@ -152,9 +152,16 @@ class PolymarketProvider:
                 continue
             outcomes = _array(moneylines[0].get("outcomes"), "outcomes")
             if len(outcomes) == 2:
+                series = event.get("series") if isinstance(event.get("series"), dict) else {}
+                competition_id = series.get("id") or event.get("seriesId")
+                competition_name = series.get("title") or series.get("name")
                 found.append({"team_a": outcomes[0], "team_b": outcomes[1],
                               "scheduled_at": scheduled.isoformat(timespec="seconds"),
-                              "event_id": str(event.get("id"))})
+                              "event_id": str(event.get("id")),
+                              "competition_id": str(competition_id) if competition_id else None,
+                              "competition_name": competition_name,
+                              "region": event.get("region"), "tournament": event.get("tournament"),
+                              "split": event.get("split"), "patch": event.get("patch")})
         return sorted(found, key=lambda row: (row["scheduled_at"], row["event_id"]))
 
     def list_closed_match_events(self, max_events: int = 500) -> list[dict[str, Any]]:
@@ -298,6 +305,7 @@ class PolymarketProvider:
             "source_kind": "prediction_market",
             "market_id": str(market.get("id")),
             "condition_id": market.get("conditionId"),
+            "event_id": str(event.get("id")),
             "team_a": team_a, "team_b": team_b,
             "format": match_format,
             "scheduled_at": scheduled.isoformat(timespec="seconds"),
