@@ -134,6 +134,11 @@ de contar maturação. Rode `python scripts/market_shadow_status.py`; o avaliado
 `scripts/evaluate_h4_gate.py` só aceita `READY_FOR_EVALUATION`. Mesmo o máximo
 veredito (`GATE_PASSED_FOR_PROSPECTIVE_SHADOW`) não habilita dinheiro real.
 
+**Encerramento H4 V2 (2026-07-23):** a decisão humana encerrou a coorte antes
+da amostra mínima, sem aprovação ou refutação. O registro versionado
+`data/h4_v2_closure.json` fixa `CLOSED_BY_HUMAN_DECISION` e `NO_GO`; coleta e
+avaliação falham fechadas até existir uma nova decisão humana auditável.
+
 Backtest separado H4‑R (não conta no gate prospectivo):
 
 ```powershell

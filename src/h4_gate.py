@@ -18,6 +18,7 @@ from typing import Any
 
 SIGNAL_SCHEMA = "lol-h4-signal/1.0"
 GATE_SCHEMA = "lol-h4-market-gate/1.0"
+CLOSURE_SCHEMA = "lol-h4-closure/1.0"
 
 
 class H4Error(ValueError):
@@ -115,6 +116,27 @@ def _trial(trials_path: Path) -> dict[str, Any]:
                 if row["name"] == "h4-lol-market-shadow-prospectivo-v2")
 
 
+def closure_status(path: Path) -> dict[str, Any] | None:
+    """Return a valid human closure; malformed records fail closed too."""
+    if not path.exists():
+        return None
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise H4Error("registro de encerramento H4 ilegível; reinício bloqueado") from exc
+    if (record.get("schema_version") != CLOSURE_SCHEMA
+            or record.get("trial") != "h4-lol-market-shadow-prospectivo-v2"
+            or record.get("scientific_status") != "CLOSED_BY_HUMAN_DECISION"
+            or record.get("operational_status") != "NO_GO"):
+        raise H4Error("registro de encerramento H4 inválido; reinício bloqueado")
+    return record
+
+
+def assert_h4_open(closure_path: Path) -> None:
+    if closure_status(closure_path) is not None:
+        raise H4Error("H4 V2 encerrada por decisão humana; nova decisão auditável é obrigatória")
+
+
 def _rows(path: Path) -> list[dict[str, Any]]:
     if not path.exists(): return []
     try: return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -139,8 +161,15 @@ def validate_signal(row: dict[str, Any], *, trial_id: str) -> None:
     if not math.isfinite(float(row["captured_odds"])) or float(row["captured_odds"]) <= 1: raise H4Error("odds inválida")
 
 
-def cohort_status(signals_path: Path, trials_path: Path, *, now: datetime | None = None) -> dict[str, Any]:
+def cohort_status(signals_path: Path, trials_path: Path, *, now: datetime | None = None,
+                  closure_path: Path | None = None) -> dict[str, Any]:
     trial, observed = _trial(trials_path), (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    if closure_path is not None:
+        closed = closure_status(closure_path)
+        if closed is not None:
+            return {"trial": trial["name"], "registered_at": trial["registered_at"],
+                    "state": "CLOSED_BY_HUMAN_DECISION", "decision_ready": False,
+                    "operational_status": "NO_GO", "closure": closed}
     p, start = trial["params"], _dt(trial["params"]["collection_start_exclusive"], "collection_start")
     rows, issues = _rows(signals_path), []
     valid = []
@@ -182,7 +211,10 @@ def _bootstrap(values: list[tuple[float, float]], *, seed: int = 13, n: int = 20
     return {"brier_difference_ci95": [brier[int(.025*n)], brier[int(.975*n)-1]], "roi_ci95": [roi[int(.025*n)], roi[int(.975*n)-1]]}
 
 
-def evaluate(signals_path: Path, trials_path: Path, output: Path, *, now: datetime | None = None, code_commit: str = "UNKNOWN") -> dict[str, Any]:
+def evaluate(signals_path: Path, trials_path: Path, output: Path, *, now: datetime | None = None,
+             code_commit: str = "UNKNOWN", closure_path: Path | None = None) -> dict[str, Any]:
+    if closure_path is not None:
+        assert_h4_open(closure_path)
     state = cohort_status(signals_path, trials_path, now=now)
     if state["state"] != "READY_FOR_EVALUATION": raise H4Error(f"H4 não está pronto: {state['state']}")
     trial, rows = _trial(trials_path), _rows(signals_path)

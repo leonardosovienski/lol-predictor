@@ -12,7 +12,8 @@ def main(argv=None) -> int:
     p.add_argument("--output", type=Path, default=ROOT / "data/market_gate.json")
     a = p.parse_args(argv)
     commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
-    try: print(json.dumps(evaluate(a.signals, ROOT / "data/trials.json", a.output, code_commit=commit), ensure_ascii=False, sort_keys=True))
+    try: print(json.dumps(evaluate(a.signals, ROOT / "data/trials.json", a.output, code_commit=commit,
+                                   closure_path=ROOT / "data" / "h4_v2_closure.json"), ensure_ascii=False, sort_keys=True))
     except H4Error as exc: print(str(exc), file=sys.stderr); return 2
     return 0
 if __name__ == "__main__": raise SystemExit(main())

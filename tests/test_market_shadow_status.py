@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from src.h4_gate import H4Error, build_signal, cohort_status, evaluate
+from src.h4_gate import H4Error, assert_h4_open, build_signal, cohort_status, evaluate
 
 
 def _trial(path):
@@ -57,3 +57,11 @@ def test_h4_past_event_without_official_result_is_not_matured(tmp_path):
     trials, signals = tmp_path/"trials.json", tmp_path/"signals.jsonl"; _trial(trials); _write(signals, [_signal(0, settled=False)])
     report = cohort_status(signals, trials, now=datetime(2026, 8, 21, tzinfo=timezone.utc))
     assert report["state"] == "DATA_QUALITY_BLOCKED" and report["matured_matches"] == 0
+
+
+def test_human_closure_blocks_restart_and_exposes_no_go_status(tmp_path):
+    trials, signals, closure = tmp_path/"trials.json", tmp_path/"signals.jsonl", tmp_path/"closure.json"; _trial(trials)
+    closure.write_text(json.dumps({"schema_version": "lol-h4-closure/1.0", "trial": "h4-lol-market-shadow-prospectivo-v2", "scientific_status": "CLOSED_BY_HUMAN_DECISION", "operational_status": "NO_GO"}), encoding="utf-8")
+    assert cohort_status(signals, trials, closure_path=closure)["state"] == "CLOSED_BY_HUMAN_DECISION"
+    with pytest.raises(H4Error, match="encerrada"):
+        assert_h4_open(closure)

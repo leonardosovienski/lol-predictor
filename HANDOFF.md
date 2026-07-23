@@ -1,5 +1,14 @@
 # HANDOFF.md — lol-predictor
 
+> ## H4 V2 ENCERRADA POR DECISÃO HUMANA (2026-07-23)
+>
+> Registro: `data/h4_v2_closure.json`. Contadores preservados: 0/50 resultados
+> oficiais, 0/30 sinais, 0/3 competições e 0,67/30 dias. H4 não foi aprovada
+> nem refutada; `market_gate.json` não foi e não deve ser criado. A tarefa
+> `lol-market-shadow` está desabilitada. Coleta/avaliação falham fechadas com
+> o registro; uma nova decisão humana auditável é necessária para qualquer
+> nova coorte. Operação com dinheiro real permanece permanentemente `NO_GO`.
+
 > ## H4 — COORTE E AVALIADOR AUDITÁVEIS (2026-07-22)
 >
 > A coorte H4 nova registra somente sinais completos (`lol-h4-signal/1.0`),

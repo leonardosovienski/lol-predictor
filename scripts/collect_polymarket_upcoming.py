@@ -15,7 +15,7 @@ from predictor_core.data.contracts import DataUnavailableError  # noqa: E402
 from src.config import resolve_team  # noqa: E402
 from src.data.polymarket_provider import PolymarketProvider  # noqa: E402
 from scripts.collect_polymarket_shadow import append_once, attach_model_snapshot  # noqa: E402
-from src.h4_gate import H4Error, build_signal  # noqa: E402
+from src.h4_gate import H4Error, assert_h4_open, build_signal  # noqa: E402
 
 TRIAL_ID = "h4-lol-market-shadow-prospectivo-v2"
 
@@ -36,6 +36,7 @@ def resolve_market_team(display: str) -> str:
 
 
 def collect(output: Path, horizon_hours: int = 72) -> dict:
+    assert_h4_open(ROOT / "data" / "h4_v2_closure.json")
     provider = PolymarketProvider()
     discovered = provider.list_upcoming_matches(horizon_hours=horizon_hours)
     appended = duplicates = skipped_identity = unavailable = 0

@@ -37,3 +37,11 @@ publica `lol-h4-market-gate/1.0` com hashes e critérios.
 Use `settle_h4_signals.py` com resultados oficiais (`canonical_event_id`,
 `result`, `result_available_at`, `source=oracle-elixir|riot-esports`). Previsões e proveniência capturadas
 nunca são alteradas. `GATE_PASSED_FOR_PROSPECTIVE_SHADOW` não autoriza dinheiro.
+
+## Encerramento autorizado
+
+Em 2026-07-23 a V2 foi encerrada por decisão humana antes da amostra mínima.
+O registro versionado `data/h4_v2_closure.json` é a fonte de verdade de
+`CLOSED_BY_HUMAN_DECISION` e `NO_GO`; não é uma aprovação nem uma refutação.
+Coleta e avaliação falham fechadas. Nova coorte exige nova decisão humana
+explícita e auditável; o encerramento não fabrica `market_gate.json`.

@@ -1,0 +1,32 @@
+{
+  "schema_version": "lol-h4-closure/1.0",
+  "trial": "h4-lol-market-shadow-prospectivo-v2",
+  "scientific_status": "CLOSED_BY_HUMAN_DECISION",
+  "operational_status": "NO_GO",
+  "reason": "Encerramento humano antes da amostra mínima prospectiva congelada.",
+  "closed_at_utc": "2026-07-23T02:00:00Z",
+  "code_commit_at_closure": "20cf1ac249fb915913031b6dc3fa6a0a3af6352b",
+  "final_counters": {
+    "officially_matured_matches": 0,
+    "eligible_signals": 0,
+    "competitions_with_valid_provenance": 0,
+    "calendar_days_elapsed": 0.67,
+    "required_matured_matches": 50,
+    "required_eligible_signals": 30,
+    "required_competitions": 3,
+    "required_calendar_days": 30
+  },
+  "preserved_artifacts": {
+    "data/trials.json": "5b45f7a697bd8ade152c251f9de4e1ca62bb738605b19b90cbb0bf3f387f6ce5",
+    "data/shadow/market_quotes.jsonl": "643761b664e34c245b1fc345ad131ad75639c612e1f2d4c9a6cd44b2fc65dbc8",
+    "data/shadow/h4_signals.jsonl": null,
+    "data/market_gate.json": null
+  },
+  "declarations": {
+    "not_approved": true,
+    "not_refuted": true,
+    "market_gate_not_generated_legitimately": true,
+    "real_money_operations_permitted": false,
+    "restart_requires_new_human_decision": true
+  }
+}

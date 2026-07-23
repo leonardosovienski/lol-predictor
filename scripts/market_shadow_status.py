@@ -14,7 +14,8 @@ from src.h4_gate import cohort_status  # noqa: E402
 
 def status(quotes_path: Path, trials_path: Path,
            now: datetime | None = None) -> dict:
-    return cohort_status(quotes_path, trials_path, now=now)
+    return cohort_status(quotes_path, trials_path, now=now,
+                         closure_path=ROOT / "data" / "h4_v2_closure.json")
 
 
 def main(argv: list[str] | None = None) -> int:
