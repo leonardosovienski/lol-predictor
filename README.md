@@ -139,6 +139,10 @@ da amostra mínima, sem aprovação ou refutação. O registro versionado
 `data/h4_v2_closure.json` fixa `CLOSED_BY_HUMAN_DECISION` e `NO_GO`; coleta e
 avaliação falham fechadas até existir uma nova decisão humana auditável.
 
+**Collection-only (2026-07-23):** `lol-archival-collection` arquiva somente
+dados esportivos oficiais em storage separado, sem reabrir H4 ou produzir gate.
+Contrato e operação em `docs/COLLECTION_ONLY_HANDOFF.md`.
+
 Backtest separado H4‑R (não conta no gate prospectivo):
 
 ```powershell

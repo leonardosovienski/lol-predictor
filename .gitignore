@@ -13,6 +13,7 @@
 /data/ingestion/
 /data/shadow/
 /data/market_gate.json
+/data/collection_only/
 /logs/operations/
 /data/lol.db*
 # trials.json + atestado são VERSIONADOS (denominador do DSR imortal)
