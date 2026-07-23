@@ -43,6 +43,10 @@ from predictor_core.kernel.rating import Entity, expected_score, update_pair, Ra
 from predictor_core.testing.stress import check_property, floats, integers, lists_of, PropertyFailure
 from predictor_core.data.asof import state_asof
 from predictor_core.data.contracts import PredictionPoint
+from predictor_core.data.collection import (
+    COLLECTION_SCHEMA_VERSION, LifecycleState, ObservationEnvelope, CollectionArchive,
+    CollectionTransitionError, ScientificPromotionError, aggregate_funnel,
+)
 
 __all__ = [
     "__version__",
@@ -80,4 +84,6 @@ __all__ = [
     "JsonlStore", "PrequentialEvaluator", "MetricMismatchError",
     # data — estado as-of + contrato do ciclo previsão→maturação
     "state_asof", "PredictionPoint",
+    "COLLECTION_SCHEMA_VERSION", "LifecycleState", "ObservationEnvelope", "CollectionArchive",
+    "CollectionTransitionError", "ScientificPromotionError", "aggregate_funnel",
 ]
