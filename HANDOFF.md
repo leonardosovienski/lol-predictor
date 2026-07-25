@@ -1,5 +1,20 @@
 # HANDOFF.md — lol-predictor
 
+> ## ESTADO FINAL — PRODUCTION_READY_COLLECTION_ONLY (2026-07-25)
+>
+> A coleta arquivística `lol-archival-collection` está ativa via
+> `tools/operational_runner.py`, com lock, timeout, log, heartbeat, event log,
+> provenance e runtime externo em `%LOCALAPPDATA%/predictor-tools/runtime/`.
+> O último estado estruturado é `NO_UPSTREAM_EVENTS`: ausência legítima de
+> calendário/fonte, não falha de software. O run
+> `lol-archival-collection-20260723` é estritamente `COLLECTION_ONLY` e não
+> entra em trial, gate ou lifecycle científico.
+>
+> H4 V2 permanece `CLOSED_BY_HUMAN_DECISION`; `lol-market-shadow` permanece
+> `Disabled`. Closure SHA-256:
+> `236D8EA3BD34E1CA0B9790E05903CADD2C7D9167EC2AA4A1655FA7635A9ABAB2`.
+> Nenhuma hipótese/trial foi reaberta e nenhuma operação financeira é permitida.
+
 > ## H4 V2 ENCERRADA POR DECISÃO HUMANA (2026-07-23)
 >
 > Registro: `data/h4_v2_closure.json`. Contadores preservados: 0/50 resultados
