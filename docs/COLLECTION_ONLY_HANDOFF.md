@@ -3,8 +3,8 @@
 ## Escopo e isolamento
 
 `lol-archival-collection` é uma coleta arquivística de dados esportivos. Ela
-publica apenas snapshots em `data/collection_only/current.json` (ignorado pelo
-Git) e usa o run versionado `data/collection_only_run.json`. Não lê nem escreve
+publica snapshots no runtime externo `%LOCALAPPDATA%/predictor-tools/runtime/`
+e usa o run versionado `data/collection_only_run.json`. Não lê nem escreve
 H4, trials, cotações, `market_gate.json`, apostas ou estados científicos.
 
 H4 V2 permanece `CLOSED_BY_HUMAN_DECISION`; a tarefa
@@ -24,8 +24,9 @@ sem avanço se já existia evento futuro.
 
 ## Operação
 
-Tarefa: `lol-archival-collection`, diária às 03:15 local, chamando
-`scripts/run_archival_collection.py`. Sem entrada de upstream válida, emite
+Tarefa: `lol-archival-collection`, diária às 03:15 local, usando o
+`operational_runner` com lock, timeout, log, heartbeat, evento e status JSON.
+Sem entrada de upstream válida, emite
 `NO_UPSTREAM_EVENTS`, que é estado normal. Use `--health` para o SLO.
 
 Não promova observações para trial: o módulo recusa explicitamente. Qualquer

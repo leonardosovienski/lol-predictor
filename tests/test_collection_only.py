@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from src.collection_only import CollectionError, collect, health, promote_to_trial
+from scripts import run_archival_collection
 
 
 def _run(): return {"collection_run_id":"test-run", "mode":"COLLECTION_ONLY"}
@@ -31,3 +32,11 @@ def test_duplicate_ambiguous_and_trial_promotion_fail_closed(tmp_path,monkeypatc
 def test_slo_alerts_after_48h_with_future_event(tmp_path):
  collect(tmp_path,_run(),[_event(scheduled_at="2026-07-25T12:00:00Z")],now=datetime(2026,7,20,tzinfo=timezone.utc))
  assert health(tmp_path,now=datetime(2026,7,23,tzinfo=timezone.utc))["status"]=="STALE_EXPECTED_EVENT"
+
+
+def test_runtime_and_runner_status_stay_outside_repository(tmp_path, monkeypatch):
+    runtime, status = tmp_path / "runtime", tmp_path / "runner-status.json"
+    monkeypatch.setenv("LOL_COLLECTION_RUNTIME_ROOT", str(runtime))
+    assert run_archival_collection.main(["--status-output", str(status)]) == 0
+    assert json.loads(status.read_text())["status"] == "NO_UPSTREAM_EVENTS"
+    assert (runtime / "current.json").is_file()
