@@ -78,6 +78,13 @@ def series_result(conn: sqlite3.Connection, team_a: str, team_b: str,
             "games_team_b": vitorias[kb], "game_ids": sorted(ids)}
 
 
+def _write(out: Path, payload: dict) -> None:
+    """Publica o artefato de resultados. Sempre, inclusive vazio."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2,
+                              sort_keys=True) + "\n", encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--signals", type=Path, default=ROOT / "data/shadow/h4_signals.jsonl")
@@ -86,8 +93,21 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     if not args.signals.exists():
+        # Escreve o artefato MESMO sem sinal. O settle_h4_signals.py abre este
+        # arquivo incondicionalmente; sem isto ele morria com FileNotFoundError
+        # (exit 2) e derrubava a semanal inteira para FAILED toda vez que a
+        # coorte estivesse vazia -- que e o estado permanente enquanto o B-12
+        # nao for decidido. Descoberto em 2026-07-26 rodando a tarefa de
+        # verdade, nao pela suite.
+        #
+        # Artefato vazio E EXPLICITO e melhor que ausencia: "0 resultados as
+        # 22:06" e um fato auditavel; arquivo faltando e ambiguo entre "nada a
+        # liquidar" e "o produtor nao rodou".
+        _write(args.out, {"status": "NO_SIGNALS", "results": [],
+                          "generated_at_utc": datetime.now(timezone.utc)
+                          .isoformat(timespec="seconds")})
         print(json.dumps({"status": "NO_SIGNALS", "signals": str(args.signals),
-                          "results": 0}))
+                          "results": 0, "out": str(args.out)}))
         return 0
     linhas = [json.loads(x) for x in args.signals.read_text(encoding="utf-8").splitlines() if x.strip()]
     conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
@@ -114,10 +134,13 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         conn.close()
 
-    if resultados:
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(json.dumps({"results": resultados}, ensure_ascii=False,
-                                       indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    # Sem `if resultados:` -- o artefato sai SEMPRE. Com o guard, uma rodada em
+    # que todos os sinais estivessem pendentes (nenhuma serie oficial ainda)
+    # nao escrevia nada, e o settle seguinte morria em FileNotFoundError. E o
+    # caso comum assim que a coleta comecar: sinal capturado hoje, serie so
+    # amanha.
+    _write(args.out, {"results": resultados, "status": "OK",
+                      "generated_at_utc": agora})
     print(json.dumps({"status": "OK", "sinais": len(linhas), "resultados": len(resultados),
                       "sem_serie_oficial": pendentes, "out": str(args.out)}, sort_keys=True))
     return 0

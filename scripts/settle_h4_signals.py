@@ -13,6 +13,13 @@ def _dt(value):
     return value
 
 def settle(signals: Path, results: Path) -> int:
+    # Coorte vazia e estado LEGITIMO (nenhum sinal elegivel ainda), nao erro:
+    # sem isto o passo morria com FileNotFoundError e derrubava a semanal
+    # inteira. O arquivo de RESULTADOS continua obrigatorio de proposito -- a
+    # ausencia dele significa "o produtor nao rodou", que E erro, e confundir
+    # os dois casos e como se fabrica um fail-open.
+    if not signals.exists():
+        return 0
     supplied = json.loads(results.read_text(encoding="utf-8")).get("results", [])
     by_id = {row.get("canonical_event_id"): row for row in supplied}
     rows = [json.loads(line) for line in signals.read_text(encoding="utf-8").splitlines() if line.strip()]
