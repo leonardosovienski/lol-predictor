@@ -65,3 +65,53 @@ def test_human_closure_blocks_restart_and_exposes_no_go_status(tmp_path):
     assert cohort_status(signals, trials, closure_path=closure)["state"] == "CLOSED_BY_HUMAN_DECISION"
     with pytest.raises(H4Error, match="encerrada"):
         assert_h4_open(closure)
+
+
+_CLOSED_RECORD = {"schema_version": "lol-h4-closure/1.0",
+                  "trial": "h4-lol-market-shadow-prospectivo-v2",
+                  "scientific_status": "CLOSED_BY_HUMAN_DECISION",
+                  "operational_status": "NO_GO"}
+_REOPENED_RECORD = {**_CLOSED_RECORD,
+                    "scientific_status": "REOPENED_BY_HUMAN_DECISION",
+                    "reopened_at_utc": "2026-07-25T00:00:00Z",
+                    "reopening_decision": {"reason": "fixture"},
+                    "supersedes_commit": "f"*40}
+
+
+def test_remover_o_registro_canonico_nao_reabre_a_coorte(tmp_path, monkeypatch):
+    """Regressão: até 2026-07-25 o arquivo ausente devolvia None e reabria a
+    coorte por apagamento, destruindo contadores e hashes preservados."""
+    import src.h4_gate as gate
+    ausente = tmp_path / "h4_v2_closure.json"
+    monkeypatch.setattr(gate, "DEFAULT_CLOSURE_RECORD", ausente)
+    with pytest.raises(H4Error, match="remoção de arquivo"):
+        gate.closure_status(ausente)
+    with pytest.raises(H4Error, match="remoção de arquivo"):
+        assert_h4_open(ausente)
+
+
+def test_reabertura_exige_os_tres_campos_de_decisao(tmp_path):
+    for faltando in ("reopened_at_utc", "reopening_decision", "supersedes_commit"):
+        path = tmp_path / f"sem_{faltando}.json"
+        path.write_text(json.dumps({k: v for k, v in _REOPENED_RECORD.items()
+                                    if k != faltando}), encoding="utf-8")
+        with pytest.raises(H4Error, match="decisão humana auditável"):
+            assert_h4_open(path)
+
+
+def test_reabertura_completa_abre_a_coorte(tmp_path):
+    path = tmp_path / "reopened.json"
+    path.write_text(json.dumps(_REOPENED_RECORD), encoding="utf-8")
+    assert_h4_open(path)  # não levanta
+    trials, signals = tmp_path/"trials.json", tmp_path/"signals.jsonl"; _trial(trials)
+    assert cohort_status(signals, trials, closure_path=path)["state"] != "CLOSED_BY_HUMAN_DECISION"
+
+
+def test_registro_de_producao_e_valido_e_nunca_libera_capital():
+    """Invariante em qualquer estado científico: capital real segue bloqueado."""
+    from pathlib import Path
+    record = json.loads((Path(__file__).resolve().parents[1] / "data" /
+                         "h4_v2_closure.json").read_text(encoding="utf-8"))
+    assert record["scientific_status"] in {"CLOSED_BY_HUMAN_DECISION",
+                                           "REOPENED_BY_HUMAN_DECISION"}
+    assert record["operational_status"] == "NO_GO"

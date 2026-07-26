@@ -19,6 +19,15 @@ from typing import Any
 SIGNAL_SCHEMA = "lol-h4-signal/1.0"
 GATE_SCHEMA = "lol-h4-market-gate/1.0"
 CLOSURE_SCHEMA = "lol-h4-closure/1.0"
+CLOSURE_TRIAL = "h4-lol-market-shadow-prospectivo-v2"
+# Registro canônico de encerramento. Some-lo NÃO reabre a coorte: `closure_status`
+# falha fechado neste caminho específico (espelha a garantia equivalente do
+# cs-predictor, `beyond_market_closure.closure_record`). Caminhos de fixture
+# continuam devolvendo None quando ausentes, para não travar teste em tmp_path.
+DEFAULT_CLOSURE_RECORD = Path(__file__).resolve().parents[1] / "data" / "h4_v2_closure.json"
+# Reabrir exige decisão humana auditável, nunca edição silenciosa de status.
+REOPENING_REQUIRED_FIELDS = frozenset(
+    {"reopened_at_utc", "reopening_decision", "supersedes_commit"})
 
 
 class H4Error(ValueError):
@@ -117,18 +126,35 @@ def _trial(trials_path: Path) -> dict[str, Any]:
 
 
 def closure_status(path: Path) -> dict[str, Any] | None:
-    """Return a valid human closure; malformed records fail closed too."""
+    """Devolve o encerramento humano que BLOQUEIA a coorte; None se ela está aberta.
+
+    Malformado, ilegível ou com status desconhecido falha fechado. Reabertura só
+    vale com `REOPENED_BY_HUMAN_DECISION` E os três campos de decisão auditável —
+    declarar o status sem eles é registro inválido, não coorte aberta.
+
+    Remover o registro canônico (`DEFAULT_CLOSURE_RECORD`) também falha fechado:
+    antes de 2026-07-25 o arquivo ausente devolvia None e reabria a coorte por
+    apagamento, destruindo os contadores e hashes preservados no próprio registro.
+    """
     if not path.exists():
+        if Path(path).resolve() == DEFAULT_CLOSURE_RECORD.resolve():
+            raise H4Error("registro de encerramento H4 ausente; a coorte não pode "
+                          "ser reaberta por remoção de arquivo")
         return None
     try:
         record = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise H4Error("registro de encerramento H4 ilegível; reinício bloqueado") from exc
+    status = record.get("scientific_status")
     if (record.get("schema_version") != CLOSURE_SCHEMA
-            or record.get("trial") != "h4-lol-market-shadow-prospectivo-v2"
-            or record.get("scientific_status") != "CLOSED_BY_HUMAN_DECISION"
+            or record.get("trial") != CLOSURE_TRIAL
+            or status not in {"CLOSED_BY_HUMAN_DECISION", "REOPENED_BY_HUMAN_DECISION"}
             or record.get("operational_status") != "NO_GO"):
         raise H4Error("registro de encerramento H4 inválido; reinício bloqueado")
+    if status == "REOPENED_BY_HUMAN_DECISION":
+        if not REOPENING_REQUIRED_FIELDS.issubset(record):
+            raise H4Error("reabertura sem nova decisão humana auditável")
+        return None  # coorte reaberta: nada a bloquear
     return record
 
 

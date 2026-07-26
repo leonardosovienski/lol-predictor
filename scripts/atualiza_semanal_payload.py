@@ -129,6 +129,16 @@ def download_csv(year: int) -> bool:
 def build_steps():
     return [
         ("ingest", [sys.executable, "-X", "utf8", "-m", "src.ingest_oracle"], 900),
+        # Liquidação da coorte H4 vem logo DEPOIS do ingest: ela lê o resultado
+        # oficial que o ingest acabou de trazer. Sem estes dois passos a coorte
+        # coleta sinal para sempre e nunca matura — era o defeito B-3, o mesmo
+        # que manteve o cs-predictor em 0/50 até 2026-07-25. Sinal sem série
+        # oficial permanece PENDING, que é o estado correto.
+        ("h4_results", [sys.executable, "-X", "utf8",
+                        str(ROOT / "scripts" / "build_h4_results.py")], 300),
+        ("h4_settle", [sys.executable, "-X", "utf8",
+                       str(ROOT / "scripts" / "settle_h4_signals.py"),
+                       "--results", str(ROOT / "data" / "shadow" / "h4_results.json")], 300),
         ("ratings", [sys.executable, "-X", "utf8", str(ROOT / "scripts" / "backtest_walkforward.py")], 900),
     ]
 
