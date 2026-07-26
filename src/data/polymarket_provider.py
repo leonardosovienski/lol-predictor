@@ -87,6 +87,37 @@ class PolymarketProvider:
                     f"Polymarket indisponível: {exc}; fallback DoH: {fallback}"
                 ) from fallback
 
+    # Ordem de tentativa do DoH. Em 2026-07-26 o resolvedor desta rede passou a
+    # devolver NXDOMAIN para polymarket.com E o IP 1.1.1.1 ficou inalcançável —
+    # o fallback criado em 20/07 parou junto. Sondagem: 1.1.1.1 sem resposta,
+    # mas `cloudflare-dns.com` responde 200. O IP é bloqueado; o hostname não.
+    # Manter mais de um endpoint evita que a queda de um mate a coleta inteira.
+    DOH_ENDPOINTS = ("https://cloudflare-dns.com/dns-query",
+                     "https://dns.google/resolve",
+                     "https://1.1.1.1/dns-query")
+
+    def _resolve_via_doh(self, hostname: str) -> str:
+        """Primeiro endpoint DoH que devolver um A público vence. Sem nenhum,
+        falha fechado — nunca chuta endereço."""
+        erros = []
+        for endpoint in self.DOH_ENDPOINTS:
+            try:
+                dns = httpx.get(
+                    endpoint, params={"name": hostname, "type": "A"},
+                    headers={"accept": "application/dns-json"}, timeout=self.timeout)
+                dns.raise_for_status()
+                for row in (dns.json().get("Answer") or []):
+                    if row.get("type") != 1:
+                        continue
+                    address = ipaddress.ip_address(row.get("data", ""))
+                    if not address.is_global:
+                        raise ValueError("DoH retornou endereço não público")
+                    return str(address)
+                erros.append(f"{endpoint}: sem registro A")
+            except (httpx.HTTPError, ValueError) as exc:
+                erros.append(f"{endpoint}: {type(exc).__name__}")
+        raise ValueError("nenhum endpoint DoH resolveu (" + "; ".join(erros) + ")")
+
     def _curl_via_doh(self, url: str) -> Any:
         parsed = urlparse(url)
         if parsed.scheme != "https" or parsed.hostname not in {
@@ -94,22 +125,7 @@ class PolymarketProvider:
             raise ValueError("host não permitido no fallback DoH")
         address_text = self._dns_cache.get(parsed.hostname)
         if address_text is None:
-            dns = httpx.get(
-                "https://1.1.1.1/dns-query",
-                params={"name": parsed.hostname, "type": "A"},
-                headers={"accept": "application/dns-json"}, timeout=self.timeout)
-            dns.raise_for_status()
-            answers = dns.json().get("Answer") or []
-            addresses = []
-            for row in answers:
-                if row.get("type") == 1:
-                    address = ipaddress.ip_address(row.get("data", ""))
-                    if not address.is_global:
-                        raise ValueError("DoH retornou endereço não público")
-                    addresses.append(str(address))
-            if not addresses:
-                raise ValueError("DoH não retornou endereço A")
-            address_text = addresses[0]
+            address_text = self._resolve_via_doh(parsed.hostname)
             self._dns_cache[parsed.hostname] = address_text
         result = subprocess.run(
             ["curl", "--fail", "--silent", "--show-error", "--max-time",
