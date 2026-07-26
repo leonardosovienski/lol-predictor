@@ -76,6 +76,24 @@ def collect(output: Path, horizon_hours: int = 72) -> dict:
             "unavailable": unavailable, "errors": errors}
 
 
+LOG = ROOT / "logs" / "operations" / "collect_polymarket_upcoming.log"
+
+
+def _log(mensagem: str) -> None:
+    """Persiste o resumo. A tarefa agendada roda sob `pythonw.exe` desde
+    2026-07-26 (para não abrir console na tela do operador) e pythonw DESCARTA
+    stdout — sem este arquivo, cada execução ficaria sem registro do que
+    coletou. Falha ao logar nunca derruba a coleta."""
+    try:
+        from datetime import datetime, timezone
+        LOG.parent.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        with LOG.open("a", encoding="utf-8") as fh:
+            fh.write(f"{stamp} {mensagem}\n")
+    except OSError:
+        pass
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Collect upcoming LoL shadow quotes")
     parser.add_argument("--horizon-hours", type=int, default=72)
@@ -89,8 +107,13 @@ def main(argv: list[str] | None = None) -> int:
         report = collect(args.output, args.horizon_hours)
     except (DataUnavailableError, OSError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
+        _log(f"FALHA {type(exc).__name__}: {exc}")
         return 2
+    # o log guarda o resumo enxuto; a lista completa de erros fica no stdout
+    resumo = {k: v for k, v in report.items() if k != "errors"}
+    resumo["errors"] = len(report.get("errors") or [])
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+    _log(json.dumps(resumo, ensure_ascii=False, sort_keys=True))
     return 0
 
 
