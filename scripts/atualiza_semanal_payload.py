@@ -16,6 +16,12 @@ OFFICIAL_ARCHIVE = "https://oracles-elixir.s3-us-west-2.amazonaws.com"
 WORKSPACE = ROOT.parent
 if str(WORKSPACE) not in sys.path:
     sys.path.insert(0, str(WORKSPACE))
+# ROOT precisa entrar explicitamente: o payload roda como script solto
+# (`python scripts/atualiza_semanal_payload.py`), entao sys.path[0] e o
+# proprio scripts/ e `src` nunca resolveria. Mesmo idioma dos demais
+# scripts do projeto (backtest_*, collect_*, governanca).
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 from tools.secret_redaction import collect_sensitive_values, safe_redact_text
 from src.data.ingestion import ConditionalDownloader, DownloadPolicy, IngestionError, SnapshotStore
 
