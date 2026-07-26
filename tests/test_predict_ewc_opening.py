@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -43,10 +44,49 @@ def test_bo1_probabilities_sum_to_one_and_order_reverses() -> None:
     assert left["probability_a"] == right["probability_b"]
 
 
-def test_stale_rating_evidence_is_flagged() -> None:
+def evidencia(tmp_path: Path, jogos: dict[str, tuple[str, int]]) -> tuple[Path, Path]:
+    """Ratings e banco SINTETICOS, com a idade da evidencia sob controle.
+
+    Antes estes testes chamavam `build()` sem paths, ou seja, contra
+    `data/ratings.json` e `data/lol.db` DE PRODUCAO. A asserção passava a
+    depender de quantos dias o banco estivesse atrasado: os dois quebraram em
+    2026-07-26 no instante em que o B-10 destravou e o banco pulou de 10/07
+    para 26/07, porque times que estavam STALE viraram FRESH. Barreira que
+    muda de resposta conforme o calendario não é barreira.
+
+    `jogos` mapeia time -> (data do ultimo jogo, quantidade).
+    """
+    ratings = tmp_path / "ratings.json"
+    ratings.write_text(json.dumps({nome: 1500.0 for nome in jogos}),
+                       encoding="utf-8")
+    db = tmp_path / "lol.db"
+    conn = sqlite3.connect(db)
+    try:
+        conn.execute("CREATE TABLE games (game_id TEXT, date TEXT, league TEXT,"
+                     " team_a TEXT, team_b TEXT, winner TEXT)")
+        for nome, (ultima, quantidade) in jogos.items():
+            for i in range(quantidade):
+                conn.execute("INSERT INTO games VALUES (?,?,?,?,?,?)",
+                             (f"{nome}-{i}", ultima, "TESTE", nome, "Sparring",
+                              nome))
+        conn.commit()
+    finally:
+        conn.close()
+    return ratings, db
+
+
+def test_stale_rating_evidence_is_flagged(tmp_path: Path) -> None:
+    # snapshot_at do fixture e 2026-07-15T00:00Z e o jogo e 16/05 ao meio-dia:
+    # 59 dias e 12h, e `.days` trunca para 59 -- bem acima do corte de 45, logo
+    # STALE. 3 jogos => INSUFFICIENT_HISTORY (corte 10).
+    ratings, db = evidencia(tmp_path, {
+        "Team Secret": ("2026-05-16 12:00:00", 3),
+        "T1": ("2026-07-14 12:00:00", 20),
+    })
     mod = load_module()
-    report = mod.build(fixture([["Team Secret", "T1"]]))
+    report = mod.build(fixture([["Team Secret", "T1"]]), ratings, db)
     row = next(item for item in report["resolutions"] if item["display"] == "Team Secret")
+    assert row["rating_age_days"] == 59
     assert row["freshness"] == "STALE" and row["rating_quality"] == "INSUFFICIENT_HISTORY"
 
 
@@ -74,13 +114,21 @@ def test_output_is_explicit_and_does_not_touch_data(tmp_path: Path) -> None:
     assert json.loads(output.read_text(encoding="utf-8"))["format"] == "bo1"
 
 
-def test_scheduled_fixture_has_maturation_and_acceptable_warning() -> None:
+def test_scheduled_fixture_has_maturation_and_acceptable_warning(tmp_path: Path) -> None:
+    # 30 dias antes do snapshot => ACCEPTABLE (entre 14 e 45) com historico
+    # suficiente, que e exatamente a faixa que dispara o aviso de evidencia
+    # envelhecendo. Sintetico pelo mesmo motivo do teste acima.
+    ratings, db = evidencia(tmp_path, {
+        "Gen.G": ("2026-06-15 12:00:00", 20),
+        "JD Gaming": ("2026-06-15 12:00:00", 20),
+    })
     mod = load_module()
     scheduled = fixture([["Gen.G", "JD Gaming"]])
     scheduled["matches"] = [{"teams": ["Gen.G", "JD Gaming"],
                               "scheduled_at": "2026-07-17T08:00:00-03:00"}]
-    row = mod.build(scheduled)["predictions"][0]
+    row = mod.build(scheduled, ratings, db)["predictions"][0]
     assert row["matures_at"] == "2026-07-17T09:00:00-03:00"
+    assert row["freshness_a"] == "ACCEPTABLE"
     assert any("acceptable but aging" in item for item in row["limitations"])
 
 
