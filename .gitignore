@@ -34,3 +34,8 @@ env/
 # SO
 .DS_Store
 Thumbs.db
+
+# Backups de runtime do caminho sancionado de reabertura: o registro
+# assinado ja preserva 'previous_closure', entao o .bak e copia de seguranca,
+# nao evidencia canonica. Entrou por engano num 'git add -A' em 2026-07-26.
+*.bak
