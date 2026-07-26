@@ -17,12 +17,18 @@ from src.data.polymarket_provider import PolymarketProvider  # noqa: E402
 from scripts.collect_polymarket_shadow import append_once, attach_model_snapshot  # noqa: E402
 from src.h4_gate import H4Error, assert_h4_open, build_signal  # noqa: E402
 
+# `pythonw.exe` (executavel de toda tarefa agendada) nao tem console: um
+# processo de console filho ganharia janela VISIVEL na tela do dono.
+# Saida ja e capturada, entao a flag nao esconde nada.
+_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+
 TRIAL_ID = "h4-lol-market-shadow-prospectivo-v2"
 
 
 def _commit() -> str:
     result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
-                            capture_output=True, text=True, check=False)
+                            capture_output=True, text=True, check=False,
+                            creationflags=_NO_WINDOW)
     if result.returncode != 0 or len(result.stdout.strip()) != 40:
         raise H4Error("Git commit indisponível; provenance H4 bloqueada")
     return result.stdout.strip()

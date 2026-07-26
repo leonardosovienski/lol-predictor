@@ -9,6 +9,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+# `pythonw.exe` (executavel de toda tarefa agendada) nao tem console: um
+# processo de console filho ganharia janela VISIVEL na tela do dono.
+# Saida ja e capturada, entao a flag nao esconde nada.
+_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+
 ROOT = Path(__file__).resolve().parent.parent
 WORKSPACE = ROOT.parent
 RUNNER = WORKSPACE / "tools" / "operational_runner.py"
@@ -74,7 +79,8 @@ def main(argv: list[str] | None = None) -> int:
         "--consumer-provenance-json", metadata, "--",
         sys.executable, "-X", "utf8", str(PAYLOAD),
     ]
-    return subprocess.run(command, cwd=ROOT, check=False).returncode
+    return subprocess.run(command, cwd=ROOT, check=False,
+                          creationflags=_NO_WINDOW).returncode
 
 
 if __name__ == "__main__":

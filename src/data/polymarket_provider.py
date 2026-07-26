@@ -12,6 +12,7 @@ import math
 import hashlib
 import ipaddress
 import subprocess
+import sys
 import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
@@ -26,6 +27,18 @@ from predictor_core.data.contracts import DataUnavailableError
 
 GAMMA = "https://gamma-api.polymarket.com"
 CLOB = "https://clob.polymarket.com"
+
+# `pythonw.exe` — o executavel de TODA tarefa agendada deste ecossistema — nao
+# tem console. Um processo de CONSOLE lancado a partir dele (aqui, o `curl` do
+# fallback DoH) ganha um console PROPRIO E VISIVEL: uma janela preta abrindo na
+# tela do dono. Como o B-0 (NXDOMAIN de polymarket.com nesta rede) forca este
+# fallback em TODA coleta, e a tarefa roda de 30 em 30 minutos, era uma janela
+# a cada meia hora, indefinidamente.
+#
+# CREATE_NO_WINDOW impede a criacao do console sem esconder nada: o stdout ja e
+# capturado por `capture_output=True`, entao nenhuma saida se perde. Vale 0 fora
+# do Windows, onde o conceito nao existe.
+_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 
 def _key(value: str) -> str:
@@ -131,7 +144,8 @@ class PolymarketProvider:
             ["curl", "--fail", "--silent", "--show-error", "--max-time",
              str(max(1, int(self.timeout))), "--resolve",
              f"{parsed.hostname}:443:{address_text}", url],
-            capture_output=True, text=True, encoding="utf-8", check=True)
+            capture_output=True, text=True, encoding="utf-8", check=True,
+            creationflags=_NO_WINDOW)
         return json.loads(result.stdout)
 
     def health_check(self) -> bool:
