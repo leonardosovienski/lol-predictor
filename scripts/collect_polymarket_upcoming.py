@@ -41,11 +41,13 @@ def resolve_market_team(display: str) -> str:
     return resolve_team(target)["name"]
 
 
-def collect(output: Path, horizon_hours: int = 72) -> dict:
+def collect(output: Path, horizon_hours: int = 72,
+            archive: Path | None = None) -> dict:
     assert_h4_open(ROOT / "data" / "h4_v2_closure.json")
     provider = PolymarketProvider()
+    archive = archive or ROOT / "data" / "shadow" / "market_observations.jsonl"
     discovered = provider.list_upcoming_matches(horizon_hours=horizon_hours)
-    appended = duplicates = skipped_identity = unavailable = 0
+    appended = duplicates = skipped_identity = unavailable = archived = 0
     errors = []
     for match in discovered:
         try:
@@ -64,6 +66,22 @@ def collect(output: Path, horizon_hours: int = 72) -> dict:
                      "source_team_b": match["team_b"],
                      "team_a": team_a, "team_b": team_b}
             quote = attach_model_snapshot(quote)
+            # ARQUIVA A OBSERVACAO BRUTA ANTES DE JULGAR ELEGIBILIDADE.
+            #
+            # Achado em 2026-07-28: o `build_signal` abaixo levanta H4Error
+            # quando falta competicao (B-12), o except captura, e a gravacao
+            # nunca acontecia — a cotacao era buscada e JOGADA FORA. Resultado:
+            # `market_quotes.jsonl` congelado desde 22/07 enquanto a tarefa
+            # rodava de 30 em 30 minutos com exit 0. Seis dias de cotacoes reais
+            # do Polymarket perdidas, irrecuperaveis.
+            #
+            # Observar e julgar sao coisas diferentes. Este arquivo NAO alimenta
+            # gate, contador nem criterio: e registro de auditoria, no sentido
+            # do BLOQUEIOS_GO §1 ("responde 'por que' depois"). Se o B-12 for
+            # decidido em agosto, existira historico para reprocessar; sem isto,
+            # nao existiria.
+            if append_once(archive, quote):
+                archived += 1
             signal = build_signal(quote, trial_id=TRIAL_ID, code_commit=_commit(),
                                   competition_id=match.get("competition_id") or "",
                                   competition_name=match.get("competition_name") or "",
@@ -78,6 +96,7 @@ def collect(output: Path, horizon_hours: int = 72) -> dict:
             errors.append({"event_id": match["event_id"], "kind": "market",
                            "error": str(exc)})
     return {"discovered": len(discovered), "appended": appended,
+            "archived": archived,
             "duplicates": duplicates, "skipped_identity": skipped_identity,
             "unavailable": unavailable, "errors": errors}
 
