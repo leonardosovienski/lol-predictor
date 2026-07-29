@@ -47,6 +47,7 @@ def consumer_provenance() -> dict[str, object]:
         "predictor_core_hash": _sha256(vendor / "CORE_MANIFEST.json"),
         "input_hashes": {
             "ratings": _sha256(ROOT / "data" / "ratings.json"),
+            "calibration": _sha256(ROOT / "data" / "calibration.json"),
             "database": _sha256(ROOT / "data" / "lol.db"),
             "teams": _sha256(ROOT / "data" / "teams_lol.json"),
         },

@@ -24,6 +24,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from src.redaction import collect_sensitive_values, safe_redact_text
 from src.data.ingestion import ConditionalDownloader, DownloadPolicy, IngestionError, SnapshotStore
+from src.runtime_manifest import RuntimeManifestError, write_runtime_manifest
 
 # `pythonw.exe` (executavel de toda tarefa agendada) nao tem console: um
 # processo de console filho ganharia janela VISIVEL na tela do dono.
@@ -195,6 +196,15 @@ def main() -> int:
             log(f"  [{name}] EXCECAO: {exc}")
             steps_ok = False
     artifact_ok = ratings_valid(started_at)
+    manifest_ok = False
+    if artifact_ok:
+        try:
+            manifest = write_runtime_manifest(ROOT)
+            log(f"  [provenance] manifest published: {manifest['artifacts']['ratings'][:12]}")
+            manifest_ok = True
+        except RuntimeManifestError as exc:
+            log(f"  [provenance] manifest unavailable: {exc}")
+    artifact_ok = artifact_ok and manifest_ok
     if steps_ok and artifact_ok and download_ok:
         exit_code = 0
     elif steps_ok and artifact_ok:

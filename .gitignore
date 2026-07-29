@@ -8,6 +8,7 @@
 /data/team_stats.json
 /data/team_stats_pesquisa.json
 /data/calibration.json
+/data/runtime_artifacts.json
 /data/walkforward_summary.json
 /data/raw/
 /data/ingestion/

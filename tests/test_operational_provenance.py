@@ -20,7 +20,7 @@ def test_refresh_consumer_provenance_is_additive_and_hashed(tmp_path) -> None:
     module.ROOT = tmp_path
     module._git = lambda *_args: "0" * 40
     (tmp_path / "data").mkdir()
-    for name in ("ratings.json", "lol.db", "teams_lol.json"):
+    for name in ("ratings.json", "calibration.json", "lol.db", "teams_lol.json"):
         (tmp_path / "data" / name).write_bytes(name.encode())
     (tmp_path / "vendor" / "predictor_core").mkdir(parents=True)
     (tmp_path / "vendor" / "predictor_core" / "VERSION").write_text("test", encoding="utf-8")
