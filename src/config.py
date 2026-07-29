@@ -44,9 +44,10 @@ def load_rating_names() -> list[str]:
 
 
 def clear_caches() -> None:
-    load_config.cache_clear()
-    load_teams.cache_clear()
-    load_rating_names.cache_clear()
+    for loader in (load_config, load_teams, load_rating_names):
+        clear = getattr(loader, "cache_clear", None)
+        if clear is not None:
+            clear()
 
 
 def _identity_key(value: str) -> str:

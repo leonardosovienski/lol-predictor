@@ -92,8 +92,12 @@ def test_stale_rating_evidence_is_flagged(tmp_path: Path) -> None:
 
 def test_json_is_deterministic_and_has_no_data_write(tmp_path: Path) -> None:
     mod = load_module()
-    ratings = ROOT / "data" / "ratings.json"
-    db = ROOT / "data" / "lol.db"
+    ratings, db = evidencia(tmp_path, {
+        "T1": ("2026-07-14 12:00:00", 20),
+        "Gen.G": ("2026-07-14 12:00:00", 20),
+        "Anyone's Legend": ("2026-07-14 12:00:00", 20),
+        "G2 Esports": ("2026-07-14 12:00:00", 20),
+    })
     before = ratings.read_bytes(), db.read_bytes()
     first = json.dumps(mod.build(fixture(), ratings, db), sort_keys=True)
     second = json.dumps(mod.build(fixture(), ratings, db), sort_keys=True)

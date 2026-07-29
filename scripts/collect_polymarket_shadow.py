@@ -17,6 +17,7 @@ from predictor_core.data.contracts import DataUnavailableError  # noqa: E402
 from predictor_core.kernel.jsonl_store import JsonlStore  # noqa: E402
 from src.config import resolve_team  # noqa: E402
 from src.data.polymarket_provider import PolymarketProvider  # noqa: E402
+from src.h4_gate import H4Error, assert_h4_open  # noqa: E402
 from src.model import EloModel  # noqa: E402
 
 
@@ -77,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
                         default=ROOT / "data" / "shadow" / "market_quotes.jsonl")
     args = parser.parse_args(argv)
     try:
+        assert_h4_open(ROOT / "data" / "h4_v2_closure.json")
         team_a = resolve_team(args.team_a)["name"]
         team_b = resolve_team(args.team_b)["name"]
         if team_a == team_b:
@@ -84,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
         quote = attach_model_snapshot(
             PolymarketProvider().fetch_match(team_a, team_b))
         appended = append_once(args.output, quote)
-    except (DataUnavailableError, OSError, ValueError) as exc:
+    except (DataUnavailableError, H4Error, OSError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
     print(json.dumps({**quote, "appended": appended},

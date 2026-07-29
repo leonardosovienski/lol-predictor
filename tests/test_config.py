@@ -33,7 +33,10 @@ def test_resolve_team_substring_e_erro():
         resolve_team("Time Fantasma")
 
 
-def test_rating_exato_precede_substring_de_time_semente():
+def test_rating_exato_precede_substring_de_time_semente(monkeypatch):
+    import src.config as cfg
+    monkeypatch.setattr(cfg, "load_rating_names",
+                        lambda: ["LOUD", "BNK FearX"])
     assert resolve_team("LOUD")["name"] == "LOUD"
     assert resolve_team("BNK FEARX")["name"] == "BNK FearX"
 

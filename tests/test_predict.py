@@ -12,7 +12,7 @@ PARES = [("T1", "Gen.G"), ("Bilibili Gaming", "G2 Esports"),
 
 @pytest.fixture(autouse=True)
 def _isolado(tmp_path, monkeypatch):
-    monkeypatch.setenv("PREDICTIONS_LOG_PATH", str(tmp_path / "pred.jsonl"))
+    monkeypatch.setenv("LOL_ADHOC_LOG_PATH", str(tmp_path / "pred.jsonl"))
     monkeypatch.setenv("PREDICTOR_EVENTS_PATH", str(tmp_path / "events.jsonl"))
     # Unit tests here exercise Elo serving; freshness is covered independently.
     monkeypatch.setattr(predict, "assert_fresh_snapshot", lambda *_args, **_kwargs: {})
@@ -58,7 +58,19 @@ def test_cli_time_desconhecido_sai_2():
 
 def test_log_default_nao_e_o_ledger_oficial(monkeypatch):
     # sem override, o CLI ad hoc NUNCA pode apontar pro ledger versionado
-    monkeypatch.delenv("PREDICTIONS_LOG_PATH", raising=False)
+    monkeypatch.delenv("LOL_ADHOC_LOG_PATH", raising=False)
     path = predict._log_path()
     assert path.name == "predictions_adhoc.jsonl"
     assert path.name != "predictions.jsonl"
+
+
+def test_legacy_official_log_override_is_ignored(monkeypatch):
+    monkeypatch.delenv("LOL_ADHOC_LOG_PATH", raising=False)
+    monkeypatch.setenv("PREDICTIONS_LOG_PATH", str(predict.ROOT / "data" / "predictions.jsonl"))
+    assert predict._log_path().name == "predictions_adhoc.jsonl"
+
+
+def test_ad_hoc_log_cannot_target_official_ledger(monkeypatch):
+    monkeypatch.setenv("LOL_ADHOC_LOG_PATH", str(predict.ROOT / "data" / "predictions.jsonl"))
+    with pytest.raises(ValueError, match="official ledger"):
+        predict._log_path()

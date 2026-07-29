@@ -1,6 +1,9 @@
 """Modelo Elo + totais de abates — Fase 0. Ratings em tmp_path."""
+import json
+
 import pytest
 
+import src.model as model_module
 from src.model import EloModel, series_probs
 
 
@@ -46,6 +49,20 @@ def test_kills_total_nao_reativa_stats_por_time_refutadas(model):
     k = model.predict_kills_total("T1", "Gen.G")
     assert k["total_projetado"] == 28.0
     assert k["kpg_a"] == 14.0 and k["kpg_b"] == 14.0
+
+
+def test_kills_uses_published_league_calibration(tmp_path, monkeypatch, model):
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "calibration.json").write_text(
+        json.dumps({"LCK": {"media_total_kills": 25.5, "sigma": 6.5, "n": 50}}),
+        encoding="utf-8")
+    monkeypatch.setattr(model_module, "ROOT", tmp_path)
+    k = model.predict_kills_total("T1", "Gen.G", league="LCK")
+    assert k["total_projetado"] == 25.5
+    assert k["league"] == "LCK"
+    assert k["model"] == "league-baseline-fase1"
+    with pytest.raises(ValueError, match="kills-league"):
+        model.predict_kills_total("T1", "Gen.G")
 
 
 def test_update_ratings_vencedor_sobe_soma_zero(model):

@@ -29,6 +29,10 @@ from predictor_core.measurement.metrics import brier, log_loss  # noqa: E402
 K = 32.0
 DEFAULT_SEED = 1400.0
 
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
 TOURNAMENTS = {
     "fst-2025": {
         "league": "FST", "start": "2025-03-10 00:00:00",
@@ -140,7 +144,8 @@ def replay(conn: sqlite3.Connection, spec: dict[str, str]) -> dict:
             row["probability_a"] if row["actual_winner"] == row["team_a"] else row["probability_b"]
             for row in forecasts), 4),
         "confidence_calibration": _confidence_calibration(forecasts),
-        "database_sha256": hashlib.sha256((ROOT / "data" / "lol.db").read_bytes()).hexdigest(),
+        "database_sha256": (_sha256(ROOT / "data" / "lol.db")
+                            if (ROOT / "data" / "lol.db").is_file() else None),
         "limitations": [
             "Map-level replay: the database has no reliable series identifier for every event.",
             "Ratings are frozen at the tournament start; no intra-bracket reaction is simulated.",

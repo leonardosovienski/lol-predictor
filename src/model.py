@@ -29,6 +29,32 @@ FORMAT_HOURS = {"bo1": 1.0, "bo3": 2.5, "bo5": 4.0}
 _RATINGS_LOCK = threading.Lock()
 
 
+def _kills_calibration(league: str | None) -> tuple[float, float, str | None, str]:
+    """Load the H2-approved league baseline without using team statistics."""
+    cfg = load_config()
+    path = ROOT / cfg.get("calibration_file", "data/calibration.json")
+    if not path.exists():
+        model = cfg["model"]
+        return (float(model["league_avg_total_kills"]),
+                float(model["kills_std"]), None, "legacy-global-baseline")
+    try:
+        calibrations = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"kills calibration unreadable: {path}") from exc
+    if not isinstance(calibrations, dict) or not league:
+        raise ValueError("--kills-league is required with league calibration")
+    entry = calibrations.get(league)
+    if not isinstance(entry, dict):
+        raise ValueError(f"league has no published calibration: {league!r}")
+    try:
+        total, std = float(entry["media_total_kills"]), float(entry["sigma"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"invalid calibration for league {league!r}") from exc
+    if not math.isfinite(total) or not math.isfinite(std) or total <= 0 or std <= 0:
+        raise ValueError(f"non-finite/invalid calibration for league {league!r}")
+    return total, std, league, "league-baseline-fase1"
+
+
 @contextmanager
 def _file_lock(path: Path):
     """Serializa writers locais também entre processos (Windows/POSIX)."""
@@ -124,7 +150,14 @@ class EloModel:
         self.platt = None
 
     def _elo(self, name: str) -> tuple[str, float]:
-        official = resolve_team(name)["name"]
+        try:
+            official = resolve_team(name)["name"]
+        except ValueError:
+            matches = [rated for rated in self.ratings
+                       if rated.strip().casefold() == name.strip().casefold()]
+            if len(matches) != 1:
+                raise
+            official = matches[0]
         if official not in self.ratings:
             # resolve_team enxerga o ratings.json default; com ratings_file
             # customizado o nome pode não existir AQUI — erro de contrato,
@@ -165,16 +198,16 @@ class EloModel:
                 "model": "elo-platt-fase1" if self.platt else "elo-fase0"}
 
     def predict_kills_total(self, team_a: str, team_b: str,
-                            line: float | None = None) -> dict:
+                            line: float | None = None,
+                            *, league: str | None = None) -> dict:
         """Total de abates de UM MAPA ≈ Normal(kpg_a + kpg_b, kills_std).
 
         Cada time contribui metade do baseline agregado. Stats por time são
         deliberadamente ignoradas porque H2 foi refutada."""
         cfg = load_config()
-        mc = cfg["model"]
         line = float(cfg["default_kills_line"]) if line is None else float(line)
-        half = float(mc["league_avg_total_kills"]) / 2.0
-        std = float(mc["kills_std"])
+        total, std, resolved_league, model_name = _kills_calibration(league)
+        half = total / 2.0
         a = resolve_team(team_a)["name"]
         b = resolve_team(team_b)["name"]
         kpg_a = kpg_b = half
@@ -185,7 +218,8 @@ class EloModel:
                 "kpg_a": round(kpg_a, 1), "kpg_b": round(kpg_b, 1),
                 "over_prob": round(p_over, 4),
                 "under_prob": round(1.0 - p_over, 4),
-                "kills_std": std, "model": "kills-normal-fase0"}
+                "kills_std": std, "league": resolved_league,
+                "model": model_name}
 
     def update_ratings(self, team_a: str, team_b: str,
                        result_a: int, result_b: int,

@@ -25,8 +25,11 @@ import predict_ewc_opening as pe  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _fresh_caches():
+def _fresh_caches(monkeypatch):
     clear_caches()
+    import src.config as cfg
+    monkeypatch.setattr(cfg, "load_rating_names",
+                        lambda: ["LOUD", "BNK FearX", "LØS", "Dplus Kia", "Sentinels"])
     yield
     clear_caches()
 

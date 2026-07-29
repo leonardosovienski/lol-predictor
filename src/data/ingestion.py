@@ -14,6 +14,7 @@ import random
 import shutil
 import tempfile
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -159,6 +160,32 @@ class SnapshotStore:
         except (OSError, ValueError):
             return None
 
+    @contextmanager
+    def _publication_lock(self):
+        """Serialize snapshot publication across local processes."""
+        self.root.mkdir(parents=True, exist_ok=True)
+        lock_path = self.root / ".publication.lock"
+        with lock_path.open("a+b") as handle:
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() == 0:
+                handle.write(b"0")
+                handle.flush()
+            handle.seek(0)
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                if os.name == "nt":
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
     @staticmethod
     def _atomic_json(path: Path, value: Mapping[str, object]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -173,7 +200,7 @@ class SnapshotStore:
             if os.path.exists(tmp):
                 os.unlink(tmp)
 
-    def publish(self, source_file: Path, *, source: str, source_headers: Mapping[str, str] | None = None) -> dict[str, object]:
+    def _publish_unlocked(self, source_file: Path, *, source: str, source_headers: Mapping[str, str] | None = None) -> dict[str, object]:
         summary = validate_oracle_csv(source_file)
         previous = self.current_metadata()
         if previous and isinstance(previous.get("temporal_range_end"), str):
@@ -211,6 +238,13 @@ class SnapshotStore:
             # No pointer changed before the final replace.  The incomplete
             # directory is intentionally left for forensic inspection.
             raise
+
+    def publish(self, source_file: Path, *, source: str,
+                source_headers: Mapping[str, str] | None = None) -> dict[str, object]:
+        """Validate, compare and publish as one serialized transaction."""
+        with self._publication_lock():
+            return self._publish_unlocked(source_file, source=source,
+                                          source_headers=source_headers)
 
 
 def assert_fresh_snapshot(root: Path | str, *, max_age_hours: int, now: datetime | None = None) -> dict[str, object]:

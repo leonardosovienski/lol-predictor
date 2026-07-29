@@ -22,7 +22,7 @@ if str(WORKSPACE) not in sys.path:
 # scripts do projeto (backtest_*, collect_*, governanca).
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from tools.secret_redaction import collect_sensitive_values, safe_redact_text
+from src.redaction import collect_sensitive_values, safe_redact_text
 from src.data.ingestion import ConditionalDownloader, DownloadPolicy, IngestionError, SnapshotStore
 
 # `pythonw.exe` (executavel de toda tarefa agendada) nao tem console: um

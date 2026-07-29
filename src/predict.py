@@ -28,12 +28,17 @@ _DOMAIN = "lol"
 def _log_path() -> Path:
     # Ad hoc do CLI NUNCA escreve em data/predictions.jsonl: aquele ledger é
     # o protocolo oficial versionado (hash congelado na governança).
-    return Path(os.environ.get("PREDICTIONS_LOG_PATH",
+    path = Path(os.environ.get("LOL_ADHOC_LOG_PATH",
                                ROOT / "data" / "predictions_adhoc.jsonl"))
+    official = (ROOT / "data" / "predictions.jsonl").resolve()
+    if path.resolve() == official:
+        raise ValueError("ad-hoc CLI cannot write to the official ledger")
+    return path
 
 
 def run(team_a: str, team_b: str, *, fmt: str = "bo3",
         market: str = "winner", kills_line: float | None = None,
+        kills_league: str | None = None,
         now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     cfg = load_config()
@@ -45,7 +50,8 @@ def run(team_a: str, team_b: str, *, fmt: str = "bo3",
                           max_age_hours=int(ingestion.get("max_staleness_hours", 192)), now=now)
     model = EloModel()
     r = model.predict_match(team_a, team_b, fmt)
-    kills = model.predict_kills_total(team_a, team_b, kills_line)
+    kills = model.predict_kills_total(team_a, team_b, kills_line,
+                                      league=kills_league)
     r["total_abates_projetado"] = kills["total_projetado"]
     r["kills"] = kills
     r["market"] = market
@@ -56,7 +62,8 @@ def run(team_a: str, team_b: str, *, fmt: str = "bo3",
         value={"prob_team_a": r["prob_team_a"], "format": fmt,
                "total_abates_projetado": r["total_abates_projetado"]},
         metadata={"team_a": r["team_a"], "team_b": r["team_b"],
-                  "market": market, "model": r["model"]})
+                  "market": market, "model": r["model"],
+                  "kills_league": kills.get("league")})
     r["predicted_at"] = point.predicted_at.isoformat(timespec="seconds")
     r["matures_at"] = point.matures_at.isoformat(timespec="seconds")
 
@@ -88,6 +95,8 @@ def main(argv=None) -> int:
                     help="mercado a exibir (winner = moneyline; kills = totais)")
     ap.add_argument("--kills-line", type=float, default=None,
                     help="linha de abates (default: config default_kills_line)")
+    ap.add_argument("--kills-league",
+                    help="league of the series when league calibration exists")
     ap.add_argument("--json", action="store_true", help="saída estruturada")
     args = ap.parse_args(argv)
 
@@ -95,7 +104,7 @@ def main(argv=None) -> int:
     fmt = args.format or cfg.get("default_format", "bo3")
     try:
         r = run(args.team_a, args.team_b, fmt=fmt, market=args.market,
-                kills_line=args.kills_line)
+                kills_line=args.kills_line, kills_league=args.kills_league)
     except (ValueError, IngestionError) as e:
         print(str(e), file=sys.stderr)
         return 2

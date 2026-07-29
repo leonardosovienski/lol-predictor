@@ -29,7 +29,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
           # Cache removido propositalmente para evitar erro de arquivo inexistente
 
       - name: Instalar Dependências
@@ -55,5 +55,4 @@ jobs:
         # por falta de banco de dados e destravar o seu CI, estamos forçando o sucesso com "|| true".
         # ==============================================================================================
         run: |
-          PYTHONPATH=.:vendor:core:tools python -m pytest -v \
-            --ignore=tests/test_weekly_download.py || true
+          PYTHONPATH=.:vendor python -m pytest -v

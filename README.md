@@ -1,5 +1,7 @@
 # lol-predictor
 
+Current operational and scientific reconciliation: [`docs/OPERATING_STATE.md`](docs/OPERATING_STATE.md).
+
 O refresh semanal usa o download oficial do Oracle's Elixir. Se o Google
 Drive oficial estiver temporariamente limitado, uma segunda URL explicitamente
 aprovada pode ser fornecida em `ORACLES_ELIXIR_<ANO>_URL`; o CSV só substitui

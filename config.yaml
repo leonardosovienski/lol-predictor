@@ -19,6 +19,7 @@ model:
 teams_file: data/teams_lol.json
 # ratings correntes persistidos por update_ratings (ausente → initial_elo)
 ratings_file: data/ratings.json
+calibration_file: data/calibration.json
 
 database: data/lol.db
 

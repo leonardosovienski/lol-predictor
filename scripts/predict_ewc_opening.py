@@ -96,6 +96,14 @@ def _match_entries(fixture: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _team_metadata(canonical: str, db_path: Path, snapshot: datetime) -> dict[str, Any]:
     seeded = next((row for row in load_teams() if row["name"] == canonical), {})
+    if not db_path.is_file():
+        return {"region": seeded.get("region") or "NOT_AVAILABLE",
+                "last_observed_competition": "NOT_AVAILABLE", "games": 0,
+                "last_observed_at": None, "rating_age_days": None,
+                "freshness": "NOT_AVAILABLE",
+                "rating_quality": "NOT_AVAILABLE",
+                "season_transition": "NOT_AVAILABLE",
+                "roster_transition": "NOT_AVAILABLE"}
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
         games, last, league = conn.execute(
@@ -125,7 +133,11 @@ def resolve(display: str, aliases: dict[str, Any], model: EloModel, db_path: Pat
         try:
             canonical = resolve_team(display)["name"]
         except ValueError as exc:
-            return {"display": display, "status": "MISSING", "reason": str(exc)}
+            matches = [name for name in model.ratings
+                       if name.casefold() == display.strip().casefold()]
+            if len(matches) != 1:
+                return {"display": display, "status": "MISSING", "reason": str(exc)}
+            canonical = matches[0]
         status = "EXACT" if canonical == display else "VERIFIED_ALIAS"
         source = "project canonical resolver (case-normalized exact name)"
     if canonical not in model.ratings:
@@ -172,13 +184,20 @@ def build(fixture: dict[str, Any], ratings_path: Path | None = None, db_path: Pa
         elif "ACCEPTABLE" in qualities:
             limitations.append("one or both teams have acceptable but aging game evidence")
         predictions.append({"team_a": team_a, "team_b": team_b, "canonical_a": result["team_a"], "canonical_b": result["team_b"], "status": "PREDICTED", "format": fixture["format"], "scheduled_at": scheduled_at, "matures_at": matures_at, "rating_a": result["elo_a"], "rating_b": result["elo_b"], "rating_difference_a_minus_b": round(result["elo_a"] - result["elo_b"], 1), "probability_a": result["prob_team_a"], "probability_b": result["prob_team_b"], "favorite": favorite, "confidence_band": _band(result["prob_team_a"]), "freshness_a": a["rating_quality"], "freshness_b": b["rating_quality"], "alias_a": a["status"], "alias_b": b["status"], "limitations": limitations})
-    artifact_digest = hashlib.sha256(ratings_path.read_bytes()).hexdigest()
+    if ratings_path.is_file():
+        artifact_digest = hashlib.sha256(ratings_path.read_bytes()).hexdigest()
+        ratings_source = "lived-runtime-artifact"
+    else:
+        seed_payload = json.dumps(model.ratings, ensure_ascii=False,
+                                  sort_keys=True).encode("utf-8")
+        artifact_digest = hashlib.sha256(seed_payload).hexdigest()
+        ratings_source = "seed-fallback-no-runtime-artifact"
     digest = fixture.get("source_ratings_sha256", artifact_digest)
     ratings_mtime = fixture.get(
         "source_ratings_mtime_utc",
-        datetime.fromtimestamp(ratings_path.stat().st_mtime, timezone.utc).isoformat(
-            timespec="seconds"))
-    return {"event": fixture["event"], "stage": fixture["stage"], "scheduled_date": fixture["scheduled_date"], "format": fixture["format"], "snapshot_at": fixture["snapshot_at"], "model": "elo-h1-map-win-probability; Platt disabled", "ratings_sha256": digest, "ratings_artifact_sha256": artifact_digest, "ratings_mtime_utc": ratings_mtime, "resolutions": list(resolved.values()), "predictions": predictions}
+        (datetime.fromtimestamp(ratings_path.stat().st_mtime, timezone.utc)
+         .isoformat(timespec="seconds") if ratings_path.is_file() else None))
+    return {"event": fixture["event"], "stage": fixture["stage"], "scheduled_date": fixture["scheduled_date"], "format": fixture["format"], "snapshot_at": fixture["snapshot_at"], "model": "elo-h1-map-win-probability; Platt disabled", "ratings_sha256": digest, "ratings_artifact_sha256": artifact_digest, "ratings_source": ratings_source, "ratings_mtime_utc": ratings_mtime, "resolutions": list(resolved.values()), "predictions": predictions}
 
 
 def _register_pre_event_unlocked(report: dict[str, Any], ledger_path: Path, now: datetime | None = None) -> dict[str, int]:
