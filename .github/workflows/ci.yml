@@ -11,13 +11,28 @@ jobs:
     name: Lint & Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout Code (Projeto Atual)
+        uses: actions/checkout@v4
+
+      - name: Clonar Tools Predictor (Dependência)
+        uses: actions/checkout@v4
+        with:
+          repository: leonardosovienski/tools-predictor
+          path: tools
+          token: ${{ secrets.SYNC_PAT_TOKEN }}
+
+      - name: Clonar Core Predictor (Dependência)
+        uses: actions/checkout@v4
+        with:
+          repository: leonardosovienski/core-predictor
+          path: core
+          token: ${{ secrets.SYNC_PAT_TOKEN }}
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
+          # Cache removido propositalmente para evitar erro de arquivo inexistente
 
       - name: Instalar Dependências
         run: |
@@ -26,7 +41,7 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
 
-      - name: Simular Workspace Local (sys.pa/th)
+      - name: Simular Workspace Local (sys.path)
         run: |
           if [ -f pyproject.toml ]; then
             PACKAGE_NAME=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb')).get('project', {}).get('name', ''))")
@@ -36,16 +51,4 @@ jobs:
           fi
 
       - name: Executar Testes
-        run: PYTHONPATH=.:vendor python -m pytest -v
-
-
-
-
-
-
-
-
-
-
-
-
+        run: PYTHONPATH=. python -m pytest -v
