@@ -74,6 +74,13 @@ def main():
         lambda: _series(edge=True, seed=SEED),
         lambda: _series(edge=False, seed=SEED + 1),
         attestation_path=att,
+        # `metric` virou obrigatória no predictor_core 2.0.0 e vai gravada no
+        # atestado: toda trial nova registrada contra ele tem que declarar a
+        # MESMA régua, senão o registry levanta MetricMismatchError. "brier" é
+        # o que este controle de fato mede — o veredito de `evaluate` é
+        # `brier(modelo) < brier(baseline)`, com o Diebold-Mariano servindo de
+        # teste de significância sobre a log-loss, não de métrica do veredito.
+        metric="brier",
         note=f"criterio Brier<baseline + DM p<0.05; edge=+100 Elo oculto; "
              f"ruido=jitter 5pp; {N_GAMES} jogos/braço; seed {SEED}")
     print(f"controle positivo OK — atestado em {att.name} ({record['passed_at']})")
