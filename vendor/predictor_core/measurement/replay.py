@@ -18,40 +18,39 @@ class LookaheadError(Exception):
 class PastView:
     """Janela read-only dos eventos 0..asof (inclusive). Acesso a índice futuro levanta
     LookaheadError; slices clampam ao passado (nunca vazam o futuro)."""
-    __slots__ = ("_data", "_i")
+    __slots__ = ("_data",)
 
-    def __init__(self, data: tuple, i: int):
+    def __init__(self, data: tuple):
         self._data = data
-        self._i = i
 
     @property
     def latest(self):
         """O evento do asof — o 'agora'."""
-        return self._data[self._i]
+        return self._data[-1]
 
     @property
     def asof_index(self) -> int:
-        return self._i
+        return len(self._data) - 1
 
     def __len__(self) -> int:
-        return self._i + 1
+        return len(self._data)
 
     def __iter__(self):
-        return iter(self._data[: self._i + 1])
+        return iter(self._data)
 
     def __getitem__(self, key):
         if isinstance(key, slice):
-            start, stop, step = key.indices(self._i + 1)   # .indices clampa ao passado
+            start, stop, step = key.indices(len(self._data))
             return self._data[start:stop:step]
-        idx = key + (self._i + 1) if key < 0 else key
+        idx = key + len(self._data) if key < 0 else key
         if idx < 0:
             # negativo além do início: passado INEXISTENTE, não lookahead —
             # IndexError preserva o diagnóstico (LookaheadError é só p/ futuro).
             raise IndexError(
-                f"índice {key} fora do range do passado (len={self._i + 1})")
-        if idx > self._i:
+                f"índice {key} fora do range do passado (len={len(self._data)})")
+        if idx >= len(self._data):
             raise LookaheadError(
-                f"acesso ao índice {key} (asof={self._i}) — lookahead barrado")
+                f"acesso ao índice {key} (asof={self.asof_index}) — lookahead barrado")
         return self._data[idx]
 
 
@@ -83,7 +82,9 @@ def replay(events, handler, *, key=None) -> list:
                 f"{ts[bad]!r} < {ts[bad - 1]!r}) — ordem quebrada é leakage temporal")
     ledger = []
     for i in range(len(data)):
-        decision = handler(PastView(data, i))
+        # Entrega somente o prefixo já observado. Mesmo acesso indevido ao
+        # atributo privado não encontra eventos futuros na memória da view.
+        decision = handler(PastView(data[:i + 1]))
         if decision is not None:
             ledger.append(decision)
     return ledger

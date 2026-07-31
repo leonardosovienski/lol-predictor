@@ -55,5 +55,5 @@ def test_no_orphan_files_in_vendor():
 def test_aggregate_reproduces():
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     recomputed = hashlib.sha256(
-        json.dumps(manifest["files"], sort_keys=True).encode()).hexdigest()[:16]
+        json.dumps(manifest["files"], sort_keys=True).encode()).hexdigest()
     assert recomputed == manifest["aggregate"]

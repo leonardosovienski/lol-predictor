@@ -18,6 +18,7 @@ from predictor_core.contracts.points import (   # noqa: F401
 from predictor_core.contracts.registry import (  # noqa: F401
     TrialRegistry, register_trial, load_trials, validate_trials,
     deflated_sharpe_ratio, attestation_path_for, PowerAttestationMissingError,
+    MetricMismatchError,
 )
 from predictor_core.contracts.collection import (  # noqa: F401
     COLLECTION_SCHEMA_VERSION, LifecycleState, ObservationEnvelope, CollectionArchive,
@@ -28,6 +29,7 @@ __all__ = [
     "MarketDataPoint", "SignalPoint", "PredictionPoint", "DataUnavailableError",
     "TrialRegistry", "register_trial", "load_trials", "validate_trials",
     "deflated_sharpe_ratio", "attestation_path_for", "PowerAttestationMissingError",
+    "MetricMismatchError",
     "COLLECTION_SCHEMA_VERSION", "LifecycleState", "ObservationEnvelope", "CollectionArchive",
     "CollectionTransitionError", "ScientificPromotionError", "aggregate_funnel",
 ]

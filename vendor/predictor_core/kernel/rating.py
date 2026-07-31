@@ -114,17 +114,16 @@ class RatingBook:
             # estado nos dois lados), inflando `games` e descontando o rating
             # do adversário comum duas vezes contra a mesma pessoa.
             raise ValueError(f"record_ranking exige nomes únicos — duplicata em {ranking!r}")
-        base_k, base_cb = self.k, self.k_factor
-        try:
-            # A divisão por (N-1) precisa valer TAMBÉM com k_factor dinâmico —
-            # `_k_for` prefere o callback, então ele é embrulhado com a mesma escala
-            # (senão uma corrida de N moveria o rating N-1x mais que um 1x1).
-            self.k = base_k / (n - 1)
-            if base_cb is not None:
-                self.k_factor = lambda entity: base_cb(entity) / (n - 1)
-            for i in range(n):
-                for j in range(i + 1, n):
-                    self.record_match(ranking[i], ranking[j], score_a=1.0)
-        finally:
-            self.k, self.k_factor = base_k, base_cb
+        # Calcula K localmente; não muta a configuração compartilhada durante
+        # a operação. Isso preserva o comportamento em chamadas concorrentes e
+        # elimina o estado temporário que antes precisava de finally.
+        divisor = n - 1
+        for i in range(n):
+            for j in range(i + 1, n):
+                ea, eb = self.get(ranking[i]), self.get(ranking[j])
+                k = max(self._k_for(ea), self._k_for(eb)) / divisor
+                new_a, new_b = update_pair(ea.rating, eb.rating, 1.0,
+                                           k=k, scale=self.scale)
+                self._entities[ranking[i]] = Entity(ranking[i], new_a, ea.games + 1)
+                self._entities[ranking[j]] = Entity(ranking[j], new_b, eb.games + 1)
         return [self.get(name) for name in ranking]
