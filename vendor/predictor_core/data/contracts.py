@@ -8,14 +8,38 @@ formato nativo de uma API para estes envelopes; o domínio só enxerga os contra
 from __future__ import annotations
 
 import abc
-import copy
 from dataclasses import dataclass
 from datetime import datetime
+from types import MappingProxyType
+
+from predictor_core.kernel.timeindex import NaiveDatetimeError, to_utc
+
+
+def _freeze(value: object) -> object:
+    """Converte containers mutáveis em equivalentes imutáveis recursivos."""
+    if isinstance(value, dict):
+        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze(item) for item in value)
+    if isinstance(value, set):
+        return frozenset(_freeze(item) for item in value)
+    if isinstance(value, tuple):
+        return tuple(_freeze(item) for item in value)
+    return value
 
 
 class DataUnavailableError(Exception):
     """Nenhuma fonte conseguiu entregar o dado — sinal terminal do Router após esgotar
     todos os provedores. O domínio decide como reagir (pular ativo, degradar, etc.)."""
+
+
+def _utc_datetime(value: datetime, field: str) -> datetime:
+    if not isinstance(value, datetime):
+        raise TypeError(f"{field} deve ser datetime timezone-aware")
+    try:
+        return to_utc(value)
+    except NaiveDatetimeError as exc:
+        raise ValueError(f"{field} deve ter timezone; use UTC-aware na fronteira do core") from exc
 
 
 @dataclass(frozen=True)
@@ -39,14 +63,18 @@ class MarketDataPoint:
     published_at: datetime
 
     def __post_init__(self) -> None:
+        timestamp = _utc_datetime(self.timestamp, "MarketDataPoint.timestamp")
+        published_at = _utc_datetime(self.published_at, "MarketDataPoint.published_at")
         if self.high < self.low:
             raise ValueError(
                 f"MarketDataPoint inválido para {self.symbol}: high={self.high} < low={self.low}")
-        if self.published_at < self.timestamp:
+        if published_at < timestamp:
             raise ValueError(
                 f"MarketDataPoint inválido para {self.symbol}: published_at "
-                f"({self.published_at.isoformat()}) anterior ao timestamp "
-                f"({self.timestamp.isoformat()}) — violaria integridade temporal")
+                f"({published_at.isoformat()}) anterior ao timestamp "
+                f"({timestamp.isoformat()}) — violaria integridade temporal")
+        object.__setattr__(self, "timestamp", timestamp)
+        object.__setattr__(self, "published_at", published_at)
 
 
 @dataclass(frozen=True)
@@ -70,10 +98,19 @@ class SignalPoint:
     vintage: datetime | None = None
 
     def __post_init__(self) -> None:
-        if self.published_at < self.timestamp:
+        timestamp = _utc_datetime(self.timestamp, "SignalPoint.timestamp")
+        published_at = _utc_datetime(self.published_at, "SignalPoint.published_at")
+        if published_at < timestamp:
             raise ValueError(
                 f"SignalPoint '{self.name}': published_at anterior ao timestamp "
                 "— violaria integridade temporal")
+        object.__setattr__(self, "timestamp", timestamp)
+        object.__setattr__(self, "published_at", published_at)
+        if self.reference_date is not None:
+            object.__setattr__(self, "reference_date", _utc_datetime(
+                self.reference_date, "SignalPoint.reference_date"))
+        if self.vintage is not None:
+            object.__setattr__(self, "vintage", _utc_datetime(self.vintage, "SignalPoint.vintage"))
 
 
 @dataclass(frozen=True)
@@ -111,40 +148,23 @@ class PredictionPoint:
         # como string), podendo tanto aceitar um PredictionPoint realmente
         # inválido quanto rejeitar um válido — e o próprio caminho de erro
         # quebrava com AttributeError ao tentar chamar .isoformat() numa str.
-        for field_name in ("predicted_at", "matures_at"):
-            value = getattr(self, field_name)
-            if not isinstance(value, datetime):
-                raise TypeError(
-                    f"PredictionPoint.{field_name} deve ser datetime, recebeu "
-                    f"{type(value).__name__} — desserialize para datetime antes de "
-                    "construir (ex.: datetime.fromisoformat), não passe a string crua")
-        # Mesma auditoria: comparar um datetime naive com um aware levanta
-        # TypeError cru do Python ("can't compare offset-naive and
-        # offset-aware datetimes"), vazando sem contexto de domínio.
-        if (self.predicted_at.tzinfo is None) != (self.matures_at.tzinfo is None):
+        predicted_at = _utc_datetime(self.predicted_at, "PredictionPoint.predicted_at")
+        matures_at = _utc_datetime(self.matures_at, "PredictionPoint.matures_at")
+        if matures_at < predicted_at:
             raise ValueError(
-                "PredictionPoint inválido: predicted_at e matures_at misturam "
-                "datetime naive e timezone-aware — normalize os dois para o mesmo "
-                "regime (preferencialmente UTC-aware) antes de construir")
-        if self.matures_at < self.predicted_at:
-            raise ValueError(
-                f"PredictionPoint inválido: matures_at ({self.matures_at.isoformat()}) "
-                f"anterior a predicted_at ({self.predicted_at.isoformat()}) — "
+                f"PredictionPoint inválido: matures_at ({matures_at.isoformat()}) "
+                f"anterior a predicted_at ({predicted_at.isoformat()}) — "
                 "previsão do já-observável é lookahead")
-        # `frozen=True` só impede REBIND de atributo, não mutação do objeto
-        # referenciado (auditoria hostil 2026-07-17: um dict/list passado em
-        # metadata/value continuava mutável pós-construção, deixando o
-        # invariante "impossível, não prometido" falso na prática). Cópia
-        # defensiva de containers mutáveis conhecidos; `value` só é copiado
-        # quando é list/dict/set — tipos escalares/imutáveis/objetos de
-        # domínio opacos passam direto, sem tentativa de deepcopy arbitrária.
-        object.__setattr__(self, "metadata",
-                           copy.deepcopy(self.metadata) if self.metadata is not None else None)
-        if isinstance(self.value, (list, dict, set)):
-            object.__setattr__(self, "value", copy.deepcopy(self.value))
+        # `frozen=True` não congela objetos referenciados. Convertemos os
+        # containers conhecidos para equivalentes imutáveis, preservando a
+        # opacidade de objetos de domínio que o core não deve tentar copiar.
+        object.__setattr__(self, "metadata", _freeze(self.metadata) if self.metadata is not None else None)
+        object.__setattr__(self, "value", _freeze(self.value))
+        object.__setattr__(self, "predicted_at", predicted_at)
+        object.__setattr__(self, "matures_at", matures_at)
 
     def is_mature(self, now: datetime) -> bool:
-        return now >= self.matures_at
+        return _utc_datetime(now, "PredictionPoint.now") >= self.matures_at
 
     def __hash__(self) -> int:
         # Auditoria hostil 2026-07-17: o __hash__ auto-gerado por

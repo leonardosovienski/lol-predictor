@@ -18,16 +18,25 @@ from predictor_core.contracts.points import (   # noqa: F401
 from predictor_core.contracts.registry import (  # noqa: F401
     TrialRegistry, register_trial, load_trials, validate_trials,
     deflated_sharpe_ratio, attestation_path_for, PowerAttestationMissingError,
+    MetricMismatchError,
 )
 from predictor_core.contracts.collection import (  # noqa: F401
     COLLECTION_SCHEMA_VERSION, LifecycleState, ObservationEnvelope, CollectionArchive,
     CollectionTransitionError, ScientificPromotionError, aggregate_funnel,
 )
+# Os campos dos contratos são congelados (MappingProxyType/tuple/frozenset) e o
+# json não serializa duas dessas três formas. `to_jsonable` é o caminho
+# sancionado de volta para quem precisa entregar um campo de contrato ao
+# json.dumps FORA do JsonlStore — que resolve o caso internamente, mas só
+# para si.
+from predictor_core.kernel.jsonable import to_jsonable  # noqa: F401
 
 __all__ = [
     "MarketDataPoint", "SignalPoint", "PredictionPoint", "DataUnavailableError",
     "TrialRegistry", "register_trial", "load_trials", "validate_trials",
     "deflated_sharpe_ratio", "attestation_path_for", "PowerAttestationMissingError",
+    "MetricMismatchError",
     "COLLECTION_SCHEMA_VERSION", "LifecycleState", "ObservationEnvelope", "CollectionArchive",
     "CollectionTransitionError", "ScientificPromotionError", "aggregate_funnel",
+    "to_jsonable",
 ]

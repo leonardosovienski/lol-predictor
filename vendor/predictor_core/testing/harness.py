@@ -11,8 +11,45 @@ register_trial` exige para aceitar uma trial NOVA. Arquivo (não flag em memóri
 porque o harness roda na suíte e o registro roda no pipeline: processos distintos.
 """
 import json
-from datetime import datetime, timezone
+import hashlib
+import inspect
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+_ATTESTATION_SCHEMA_VERSION = "pipeline-power/2"
+
+
+def pipeline_fingerprint(evaluate_func, edge_generator, noise_generator, *, metric: str) -> str:
+    """Fingerprint reprodutível da régua atestada e dos seus controles.
+
+    O registry recebe o mesmo valor ao abrir uma trial; assim um atestado de um
+    pipeline anterior não autoriza silenciosamente uma régua modificada. É
+    evidência de proveniência, não assinatura criptográfica: a confiança no
+    arquivo de atestado permanece no ambiente que o produz.
+    """
+    def describe(func):
+        try:
+            source = inspect.getsource(func)
+        except (OSError, TypeError):
+            source = repr(func)
+        return {"module": getattr(func, "__module__", None),
+                "qualname": getattr(func, "__qualname__", None), "source": source}
+
+    payload = {"metric": metric, "evaluate": describe(evaluate_func),
+               "edge_generator": describe(edge_generator), "noise_generator": describe(noise_generator)}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _core_version() -> str:
+    return (Path(__file__).resolve().parents[1] / "VERSION").read_text(encoding="utf-8").splitlines()[0]
+
+
+def _atomic_write_json(path: Path, record: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(record, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
+                   encoding="utf-8")
+    tmp.replace(path)
 
 
 class PipelineHasNoPowerError(AssertionError):
@@ -55,8 +92,9 @@ def assert_pipeline_has_power(evaluate_func, edge_generator, noise_generator,
 def attest_pipeline_power(evaluate_func, edge_generator, noise_generator,
                           *, attestation_path: Path | str, note: str = "",
                           edge_verdict: str = "COMPROVADA",
-                          null_verdict: str = "REFUTADA",
-                          metric: str = "") -> dict:
+                           null_verdict: str = "REFUTADA",
+                           metric: str = "",
+                           valid_for: timedelta = timedelta(days=7)) -> dict:
     """Roda o controle positivo e, PASSANDO, emite o atestado que destrava a
     criação de trials novas no Experiment Registry (measurement.trials).
 
@@ -64,21 +102,29 @@ def attest_pipeline_power(evaluate_func, edge_generator, noise_generator,
     para o local canônico (irmão do trials.json). Falhando o controle, levanta
     PipelineHasNoPowerError e NÃO grava nada. Retorna o dict do atestado.
 
-    `metric` (v1.3.0, punição global): nome da métrica que o pipeline atestado
+    `metric`: nome da métrica que o pipeline atestado
     usa (ex.: "brier" para binário, "rps" para ordinal). Vai no atestado; o
-    registry pode então exigir que a trial declare a MESMA métrica — um
-    pipeline atestado com Brier não cobre vereditos emitidos com RPS."""
+    registry exige que a trial declare a MESMA métrica e o
+    `pipeline_fingerprint` retornado. `valid_for` limita a vida do atestado."""
+    if not isinstance(metric, str) or not metric:
+        raise ValueError("metric é obrigatória para emitir atestado de poder")
+    if valid_for <= timedelta(0):
+        raise ValueError("valid_for deve ser positivo")
     assert_pipeline_has_power(evaluate_func, edge_generator, noise_generator,
-                              edge_verdict=edge_verdict, null_verdict=null_verdict)
+                               edge_verdict=edge_verdict, null_verdict=null_verdict)
+    issued_at = datetime.now(timezone.utc)
     record = {
-        "passed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "schema_version": _ATTESTATION_SCHEMA_VERSION,
+        "passed_at": issued_at.isoformat(timespec="seconds"),
+        "expires_at": (issued_at + valid_for).isoformat(timespec="seconds"),
+        "core_version": _core_version(),
         "evaluate": getattr(evaluate_func, "__name__", repr(evaluate_func)),
         "edge_verdict": edge_verdict,
         "note": note,
         "metric": metric,
+        "pipeline_fingerprint": pipeline_fingerprint(
+            evaluate_func, edge_generator, noise_generator, metric=metric),
     }
     ap = Path(attestation_path)
-    ap.parent.mkdir(parents=True, exist_ok=True)
-    ap.write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n",
-                  encoding="utf-8")
+    _atomic_write_json(ap, record)
     return record

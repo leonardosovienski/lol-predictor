@@ -5,9 +5,9 @@ Novo código importa daqui."""
 from predictor_core.measurement.trials import (  # noqa: F401
     TrialRegistry, register_trial, load_trials, validate_trials,
     deflated_sharpe_ratio, expected_max_sharpe, attestation_path_for,
-    PowerAttestationMissingError,
+    PowerAttestationMissingError, MetricMismatchError,
 )
 
 __all__ = ["TrialRegistry", "register_trial", "load_trials", "validate_trials",
-           "deflated_sharpe_ratio", "expected_max_sharpe", "attestation_path_for",
-           "PowerAttestationMissingError"]
+            "deflated_sharpe_ratio", "expected_max_sharpe", "attestation_path_for",
+            "PowerAttestationMissingError", "MetricMismatchError"]

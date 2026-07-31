@@ -47,6 +47,9 @@ from predictor_core.measurement.stats import probabilistic_sharpe_ratio
 
 _EULER = 0.5772156649015329  # γ de Euler–Mascheroni
 _DEFAULT_PATH = Path("trials.json")
+_ALLOWED_EXTRA = {"features_used", "train_period", "test_period",
+                  "status", "rps_dixon", "rps_elo_baseline", "delta_rps_ci95"}
+_TRIAL_FIELDS = {"name", "registered_at", "params", "sharpe", "notes", "metric", *_ALLOWED_EXTRA}
 
 
 class PowerAttestationMissingError(RuntimeError):
@@ -64,14 +67,15 @@ def attestation_path_for(trials_path: Path | str) -> Path:
     return p.with_name(p.stem + ".harness_attestation.json")
 
 
-def _attestation_file_ok(att: Path) -> bool:
-    """Atestado válido = arquivo existente, JSON legível, com `passed_at`."""
+def _load_attestation(att: Path) -> dict | None:
+    """Lê um atestado legível; a validação de campos cabe ao registry."""
     if not att.exists():
-        return False
+        return None
     try:
-        return bool(json.loads(att.read_text(encoding="utf-8")).get("passed_at"))
+        parsed = json.loads(att.read_text(encoding="utf-8"))
     except (ValueError, OSError):
-        return False
+        return None
+    return parsed if isinstance(parsed, dict) else None
 
 
 # ---------- registro ----------
@@ -135,7 +139,7 @@ def _lock_owner_pid_dead(lock_path: Path) -> bool:
     return not _pid_alive(pid)
 
 
-def _acquire_trials_lock(p: Path, *, timeout: float = 10.0, poll: float = 0.05) -> Path:
+def _acquire_trials_lock(p: Path, *, timeout: float = 60.0, poll: float = 0.05) -> Path:
     """Lock de arquivo (O_CREAT|O_EXCL) em torno da seção crítica read-modify-
     write de register_trial. Sem isto, dois processos podiam ler o mesmo
     estado, cada um calcular sua própria trial nova, e a segunda escrita
@@ -144,16 +148,18 @@ def _acquire_trials_lock(p: Path, *, timeout: float = 10.0, poll: float = 0.05) 
     nem aviso algum, justamente o "esquecimento seletivo" que a governança
     N+1 do módulo existe para impedir. Advisory only (protege register_trial
     contra si mesmo em processos concorrentes, não contra edição manual do
-    arquivo); locks mais velhos que `timeout` são considerados órfãos e
-    reclamados.
+    arquivo). Um lock cujo PID esteja comprovadamente vivo NUNCA é roubado: o
+    timeout limita somente a espera do concorrente. Locks sem dono legível
+    podem ser recuperados por idade como fallback conservador.
 
     Auditoria hostil 2026-07-17 (rodada predictor_core): a versão original só
     reclamava por IDADE (timeout default de 10s) — curto demais para dados
     científicos: um escritor legítimo mas lento (I/O de disco, pausa de GC)
     podia ter o lock "roubado" por outro processo, reabrindo exatamente a
     corrida que este lock existe para impedir. Agora o conteúdo do lock grava
-    o PID do dono, e um PID comprovadamente morto é reclamado IMEDIATAMENTE
-    (falha de leitura ou PID vivo caem no fallback por idade, inalterado)."""
+    o PID do dono, e um PID comprovadamente morto é reclamado IMEDIATAMENTE.
+    Um PID vivo prevalece sobre a idade; isso impede que I/O lento reabra a
+    corrida que o lock existe para evitar."""
     lock_path = p.with_suffix(p.suffix + ".lock")
     deadline = time.monotonic() + timeout
     while True:
@@ -169,11 +175,19 @@ def _acquire_trials_lock(p: Path, *, timeout: float = 10.0, poll: float = 0.05) 
                 except OSError:
                     pass
                 continue
+            # Se o lock declara um PID vivo (ou não conseguimos provar que está
+            # morto), não o removemos por idade. `timeout` só decide quando o
+            # concorrente desiste de esperar, nunca autoriza dois escritores.
+            try:
+                content = json.loads(lock_path.read_text(encoding="ascii"))
+                owner_is_live = isinstance(content.get("pid"), int) and _pid_alive(content["pid"])
+            except (OSError, ValueError, AttributeError):
+                owner_is_live = False
             try:
                 age = time.time() - lock_path.stat().st_mtime
             except OSError:
                 continue  # lock sumiu entre o open e o stat: tenta de novo
-            if age > timeout:
+            if not owner_is_live and age > timeout:
                 try:
                     lock_path.unlink()
                 except OSError:
@@ -226,6 +240,12 @@ def validate_trials(trials: list[dict]) -> list[str]:
     seen: set[str] = set()
     for i, t in enumerate(trials):
         tag = f"trial[{i}]"
+        if not isinstance(t, dict):
+            errs.append(f"{tag}: trial deve ser objeto JSON, encontrado {type(t).__name__}")
+            continue
+        unknown = set(t) - _TRIAL_FIELDS
+        if unknown:
+            errs.append(f"{tag}: campos desconhecidos: {sorted(unknown)}")
         name = t.get("name")
         if not isinstance(name, str) or not name or " " in name:
             errs.append(f"{tag}: name inválido ({name!r}) — str não-vazia sem espaços")
@@ -286,7 +306,8 @@ def register_trial(name: str, *, params: dict, sharpe: float | None = None,
                    notes: str = "", path: Path | str | None = None,
                    now: str | None = None,
                    power_attestation: Path | str | bool | None = None,
-                   metric: str | None = None,
+                    metric: str | None = None,
+                    pipeline_fingerprint: str | None = None,
                    **extra) -> list[dict]:
     """Registra (ou atualiza) uma tentativa. `name` é a identidade da CONFIGURAÇÃO.
 
@@ -301,10 +322,9 @@ def register_trial(name: str, *, params: dict, sharpe: float | None = None,
     caminho = usa esse arquivo; False = bypass EXPLÍCITO (só para teste de
     mecânica do registro — nunca em pesquisa real).
 
-    Punição global (v1.3.0): se `metric` for informada (ex.: "brier", "rps"),
-    o atestado precisa declarar a MESMA métrica — atestado emitido com outra
-    métrica (ou sem métrica) levanta MetricMismatchError: o controle positivo
-    que passou não cobre o veredito que a trial vai emitir.
+    Punição global: para trial NOVA protegida, `metric` e
+    `pipeline_fingerprint` são obrigatórios e devem casar com o atestado ainda
+    válido e emitido pela mesma versão do core.
 
     `now` injetável para teste determinístico. `extra` aceita os campos
     opcionais do schema (features_used, train_period, test_period). Valida o
@@ -319,17 +339,22 @@ def register_trial(name: str, *, params: dict, sharpe: float | None = None,
     try:
         return _register_trial_locked(name, params=params, sharpe=sharpe, notes=notes,
                                        path=p, now=now, power_attestation=power_attestation,
-                                       metric=metric, **extra)
+                                       metric=metric, pipeline_fingerprint=pipeline_fingerprint,
+                                       **extra)
     finally:
         _release_trials_lock(lock_path)
 
 
 def _register_trial_locked(name: str, *, params: dict, sharpe: float | None,
-                           notes: str, path: Path, now: str | None,
-                           power_attestation: Path | str | bool | None,
-                           metric: str | None, **extra) -> list[dict]:
+                            notes: str, path: Path, now: str | None,
+                            power_attestation: Path | str | bool | None,
+                            metric: str | None, pipeline_fingerprint: str | None,
+                            **extra) -> list[dict]:
     """Corpo de register_trial que roda DENTRO do lock — não chamar direto."""
     p = path
+    bad_extra = set(extra) - _ALLOWED_EXTRA
+    if bad_extra:
+        raise ValueError(f"trial '{name}': campos extras não permitidos: {sorted(bad_extra)}")
     trials = load_trials(p)
     stamp = now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     entry = {"name": name, "registered_at": stamp, "params": params,
@@ -361,21 +386,39 @@ def _register_trial_locked(name: str, *, params: dict, sharpe: float | None,
     else:
         if power_attestation is not False:
             att = Path(power_attestation) if power_attestation else attestation_path_for(p)
-            if not _attestation_file_ok(att):
+            attestation = _load_attestation(att)
+            required = {"schema_version", "passed_at", "expires_at", "core_version",
+                        "metric", "pipeline_fingerprint"}
+            if not attestation or not required <= attestation.keys():
                 raise PowerAttestationMissingError(
-                    f"trial nova '{name}' sem atestado de controle positivo "
-                    f"({att}) — rode testing.harness.attest_pipeline_power "
-                    "para provar que o pipeline detecta edge plantado e "
-                    "rejeita ruído, ANTES de registrar tentativas.")
-            if metric is not None:
-                attested = json.loads(att.read_text(encoding="utf-8")).get("metric", "")
-                if attested != metric:
-                    raise MetricMismatchError(
-                        f"trial nova '{name}' declara metric={metric!r} mas o "
-                        f"atestado ({att}) foi emitido com metric={attested!r} — "
-                        "o controle positivo que passou não cobre esse veredito. "
-                        "Reate o harness com a métrica correta "
-                        "(attest_pipeline_power(..., metric=...)).")
+                    f"trial nova '{name}' sem atestado de controle positivo válido "
+                    f"({att}) — rode testing.harness.attest_pipeline_power antes de registrar.")
+            try:
+                expires_at = datetime.fromisoformat(attestation["expires_at"].replace("Z", "+00:00"))
+            except (TypeError, ValueError):
+                raise PowerAttestationMissingError(f"atestado inválido ({att}): expires_at ausente ou inválido")
+            if expires_at.tzinfo is None:
+                raise PowerAttestationMissingError(f"atestado inválido ({att}): expires_at deve ter timezone")
+            if expires_at <= datetime.now(timezone.utc):
+                raise PowerAttestationMissingError(f"atestado expirado ({att}); reate o pipeline")
+            current_core_version = (Path(__file__).resolve().parents[1] / "VERSION").read_text(
+                encoding="utf-8").splitlines()[0]
+            if attestation["core_version"] != current_core_version:
+                raise PowerAttestationMissingError(
+                    f"atestado ({att}) foi emitido para core {attestation['core_version']!r}, "
+                    f"mas o core atual é {current_core_version!r}; reate o pipeline")
+            if not isinstance(metric, str) or not metric:
+                raise MetricMismatchError(f"trial nova '{name}' deve declarar metric para casar com o atestado")
+            if attestation["metric"] != metric:
+                raise MetricMismatchError(
+                    f"trial nova '{name}' declara metric={metric!r} mas o atestado ({att}) "
+                    f"foi emitido com metric={attestation['metric']!r}")
+            if not isinstance(pipeline_fingerprint, str) or not pipeline_fingerprint:
+                raise PowerAttestationMissingError(
+                    f"trial nova '{name}' deve declarar pipeline_fingerprint do harness atestado")
+            if attestation["pipeline_fingerprint"] != pipeline_fingerprint:
+                raise PowerAttestationMissingError(
+                    f"trial nova '{name}' usa pipeline_fingerprint diferente do atestado ({att})")
         trials.append(entry)
     errs = validate_trials(trials)
     if errs:
@@ -393,7 +436,7 @@ def _register_trial_locked(name: str, *, params: dict, sharpe: float | None,
     # Escrita atômica (tmp + replace): crash no meio do write não pode corromper
     # o registro inteiro — o denominador do DSR é a memória da governança.
     try:
-        serialized = json.dumps(trials, ensure_ascii=False, indent=2) + "\n"
+        serialized = json.dumps(trials, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
     except TypeError as exc:
         # Auditoria hostil 2026-07-17: um valor não-serializável em params
         # (datetime, instância de classe custom) vazava como TypeError cru
@@ -457,11 +500,13 @@ class TrialRegistry:
                  notes: str = "", now: str | None = None,
                  power_attestation: Path | str | bool | None = None,
                  metric: str | None = None,
+                 pipeline_fingerprint: str | None = None,
                  **extra) -> list[dict]:
         return register_trial(name, params=params, sharpe=sharpe, notes=notes,
-                              path=self.path, now=now,
-                              power_attestation=power_attestation,
-                              metric=metric, **extra)
+                               path=self.path, now=now,
+                               power_attestation=power_attestation,
+                               metric=metric, pipeline_fingerprint=pipeline_fingerprint,
+                               **extra)
 
     def load(self) -> list[dict]:
         return load_trials(self.path)
