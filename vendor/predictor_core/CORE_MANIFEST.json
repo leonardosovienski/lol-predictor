@@ -1,9 +1,9 @@
 {
-  "aggregate": "b09623aa5dbf02c2b0916a5255e092b2405c95bb09196052513fd8d9a2546ddd",
+  "aggregate": "542e0e329ab7e6f352081c55d1404d8f0fdd5e7e8d3032849e8a3177143a721c",
   "files": {
-    "VERSION": "6d7ea641aefed23873dcef876b3643b3b8ee144ea231bd191bd3ccec801d44bf",
+    "VERSION": "cce777e69e667592f34806c0710d893382001608960d9eb386f4756e3c6e9b79",
     "__init__.py": "9a7d9ab6d69adb937a6989910ad822388fa9934e39701b7013c0aa9199fda458",
-    "contracts/__init__.py": "434a980b802ddf7419bdd3bdee1ffc567eaa2f49659f2a59645dedf46295b987",
+    "contracts/__init__.py": "34f35ab93c167fbdb728ed770955a33b47bc7ea9c6912b80819163c0e9525e40",
     "contracts/collection.py": "c53a135d079c58c76efa0d825c89f73c6bb783ffd64adb2dd4fd541b0d197ba7",
     "contracts/points.py": "3a3a0641328f9fc4eee65ff11f720f73448b48369e5f228926f20b5ad25cc8c7",
     "contracts/registry.py": "61bf2cfb8896a5ab08b4fcc1d52ac0a7a9b6126b9d1429826cd59125bf201382",
@@ -18,7 +18,8 @@
     "infra.py": "94adde98ec6b24d40fd07fb1fd44973266a2d9de3eb5429d0e8ff886600fec2d",
     "kernel/__init__.py": "dbe35a51e9b3fd6fcd78268e90e62932632d1f140c94e370e4355ef8f403c124",
     "kernel/infra.py": "8866340eca8cb77db31b2e11ecaab798118a32bcb3101b5658e01e004e1f793e",
-    "kernel/jsonl_store.py": "b1eac8bc2546b4539c9da2ab662a56b3d539ada4baa92477bac1898861444b96",
+    "kernel/jsonable.py": "9dc79673df56cd6371f03c04801685ff0e68c887e176017bfc6eb8b9169f9e51",
+    "kernel/jsonl_store.py": "d345cb71044515283740abe629f1f8e730260a0c892d4541997d87643ce12763",
     "kernel/meta.py": "e50836662aaccfe2e7749777459ee966409156cfa7873d3eafa499c1b00422d0",
     "kernel/net.py": "30b777ef8e85151fabc47f8d79d08604e19bfce48b421c5006c5f3358a0253af",
     "kernel/obs.py": "f1a9031b1f579a481ee921fcdc5504b54864899f5126cd6d84516402f68c17ac",
@@ -49,6 +50,6 @@
     "testing/stress.py": "f4fa52114add1f99040231f8e568727f39860460307c156e6877fd4712c2c741",
     "testing/synth.py": "f0b9d0b1ef862e5d7dd2220489bb57412d09810f74b6e00e18f5ddad93fa1e76"
   },
-  "source_version": "2.0.2-ga-20260731",
-  "synced_at": "2026-07-31T17:33:56+00:00"
+  "source_version": "2.0.1-ga-20260731",
+  "synced_at": "2026-07-31T17:41:33+00:00"
 }

@@ -16,33 +16,31 @@ import os
 from pathlib import Path
 from types import MappingProxyType
 
+from predictor_core.kernel.jsonable import stable_sorted
+
 __all__ = ["JsonlStore"]
 
 
 def _json_immutable(value: object) -> object:
-    """Reduz os containers imutáveis do core a equivalentes JSON nativos.
+    """Handler de `default=` para os containers imutáveis do core.
 
-    `data.contracts._freeze` (2.0.0) congela os campos dos contratos
-    recursivamente: dict vira MappingProxyType, list/tuple viram tuple e set
-    vira frozenset. O json só conhece tuple (vira array) — os outros dois
-    explodiam com `TypeError: Object of type mappingproxy is not JSON
-    serializable` ao gravar aqui. Como `PredictionPoint.value` é congelado pelo
-    core e `JsonlStore.append` é o gravador do próprio core, as duas APIs
-    deixaram de compor: o consumidor faz tudo certo e ainda assim quebra.
+    `data.contracts._freeze` (2.0.0) congela os campos dos contratos: dict vira
+    MappingProxyType, list/tuple viram tuple e set vira frozenset. O json só
+    conhece tuple (vira array) — os outros dois explodiam com `TypeError:
+    Object of type mappingproxy is not JSON serializable` ao gravar aqui. Como
+    `PredictionPoint.value` é congelado pelo core e `JsonlStore.append` é o
+    gravador do próprio core, as duas APIs deixaram de compor: o consumidor faz
+    tudo certo e ainda assim quebra.
+
+    A ordenação de conjuntos delega a `kernel.jsonable.stable_sorted` — mesma
+    implementação que a API pública `contracts.to_jsonable` usa, para as duas
+    não divergirem. Aqui a recursão fica por conta do próprio json, que chama
+    `default` de novo para cada valor aninhado que ele não reconheça.
     """
     if isinstance(value, MappingProxyType):
         return dict(value)
-    if isinstance(value, frozenset):
-        try:
-            return sorted(value)
-        except TypeError:
-            # Elementos de tipos não comparáveis entre si (ex.: {1, "a"}).
-            # `list(frozenset)` seria ordenado pelo HASH, que varia com o
-            # PYTHONHASHSEED: a MESMA entrada geraria linhas diferentes entre
-            # execuções. Num ledger de proveniência isso é inaceitável — o
-            # arquivo é a memória da governança. `repr` dá uma ordem total
-            # estável para qualquer mistura de tipos.
-            return sorted(value, key=repr)
+    if isinstance(value, (frozenset, set)):
+        return stable_sorted(value)
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
