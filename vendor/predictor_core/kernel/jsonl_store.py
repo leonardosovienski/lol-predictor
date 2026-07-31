@@ -35,8 +35,14 @@ def _json_immutable(value: object) -> object:
     if isinstance(value, frozenset):
         try:
             return sorted(value)
-        except TypeError:  # elementos de tipos não comparáveis entre si
-            return list(value)
+        except TypeError:
+            # Elementos de tipos não comparáveis entre si (ex.: {1, "a"}).
+            # `list(frozenset)` seria ordenado pelo HASH, que varia com o
+            # PYTHONHASHSEED: a MESMA entrada geraria linhas diferentes entre
+            # execuções. Num ledger de proveniência isso é inaceitável — o
+            # arquivo é a memória da governança. `repr` dá uma ordem total
+            # estável para qualquer mistura de tipos.
+            return sorted(value, key=repr)
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
