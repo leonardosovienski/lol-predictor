@@ -67,6 +67,20 @@ def evaluate(series):
             "dm_p": round(pval, 5)}
 
 
+def _preregistration_notes(reg: TrialRegistry, name: str, default: str) -> str:
+    """`notes` da primeira vez que `name` é registrada; depois disso preserva
+    o que já está no arquivo.
+
+    Regressão 2026-08-01: como `register_trial` REESCREVE `notes` inteira
+    (não faz merge), rodar este script de novo — por exemplo só para renovar
+    o atestado, que expira em 7 dias — revertia h1/h2 ao texto curto de
+    pré-registro e apagava o "RESULTADO ..." que um backtest anexa depois de
+    rodar. O texto de `default` só faz sentido antes de o resultado existir.
+    """
+    existing = next((t for t in reg.load() if t["name"] == name), None)
+    return existing["notes"] if existing is not None else default
+
+
 def main():
     att = attestation_path_for(TRIALS)
     record = attest_pipeline_power(
@@ -96,10 +110,12 @@ def main():
                             "LTA", "MSI", "WLDs", "FST", "EWC"],
                 "period": "2025-01..2026-07"},
         sharpe=None,
-        notes="H1-LOL: Elo por mapa (prequential, prever-antes-de-atualizar) "
-              "prevê o vencedor melhor que a banda regional congelada. "
-              "COMPROVADA = Brier menor E Diebold-Mariano p<0.05 sobre "
-              "log-loss. Métrica probabilística (sem odds na Fase 1a).",
+        notes=_preregistration_notes(
+            reg, "h1-lol-elo-mapa-prequential",
+            "H1-LOL: Elo por mapa (prequential, prever-antes-de-atualizar) "
+            "prevê o vencedor melhor que a banda regional congelada. "
+            "COMPROVADA = Brier menor E Diebold-Mariano p<0.05 sobre "
+            "log-loss. Métrica probabilística (sem odds na Fase 1a)."),
         test_period=["2025-01-12", "2026-07-10"])
     reg.register(
         "h2-lol-kills-normal-por-liga",
@@ -108,9 +124,11 @@ def main():
                 "baseline": "média/sigma da liga pura",
                 "min_league_games": 30, "period": "2025-01..2026-07"},
         sharpe=None,
-        notes="H2-LOL: Normal de abates com médias POR TIME bate a média da "
-              "liga pura. COMPROVADA = Brier menor com DM p<0.05 em >=2 das "
-              "3 linhas.",
+        notes=_preregistration_notes(
+            reg, "h2-lol-kills-normal-por-liga",
+            "H2-LOL: Normal de abates com médias POR TIME bate a média da "
+            "liga pura. COMPROVADA = Brier menor com DM p<0.05 em >=2 das "
+            "3 linhas."),
         test_period=["2025-01-12", "2026-07-10"])
     errs = reg.validate()
     if errs:
