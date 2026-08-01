@@ -101,10 +101,10 @@
       "uncertainty": "paired_bootstrap_95pct_ci"
     },
     "sharpe": null,
-    "notes": "Pré-registro prospectivo. Os 6 snapshots anteriores ou iguais a collection_start_exclusive são probes operacionais e ficam EXCLUÍDOS. Elegível: moneyline exato, identidade resolvida, published_at<=observed_at<scheduled_at-15min, spread<=0.10, liquidez>=1000; usa uma cotação por partida, a última elegível antes do cutoff. COMPROVADA somente se n>=50 em >=30 dias e >=3 competições, Brier do modelo menor que o mercado com limite superior do IC95% pareado <0, e ROI shadow de sinais com edge>=0.05 tiver n>=30 e limite inferior do IC95% >0. REFUTADA se amostra mínima for atingida e o IC95% do Brier favorecer o mercado ou o limite superior do IC95% do ROI for <0. Caso contrário INCONCLUSIVA. Nenhuma aposta real autorizada.",
+    "notes": "Pré-registro prospectivo. Os 6 snapshots anteriores ou iguais a collection_start_exclusive são probes operacionais e ficam EXCLUÍDOS. Elegível: moneyline exato, identidade resolvida, published_at<=observed_at<scheduled_at-15min, spread<=0.10, liquidez>=1000; usa uma cotação por partida, a última elegível antes do cutoff. COMPROVADA somente se n>=50 em >=30 dias e >=3 competições, Brier do modelo menor que o mercado com limite superior do IC95% pareado <0, e ROI shadow de sinais com edge>=0.05 tiver n>=30 e limite inferior do IC95% >0. REFUTADA se amostra mínima for atingida e o IC95% do Brier favorecer o mercado ou o limite superior do IC95% do ROI for <0. Caso contrário INCONCLUSIVA. Nenhuma aposta real autorizada. | CORREÇÃO 2026-08-01: test_period[1] preenchido com o registered_at de h4-lol-market-shadow-prospectivo-v2 (2026-07-22T13:00:00Z) — o instante em que esta coorte foi suplantada pela v2 por decisão de auditoria, não um limite fechado por dado maturado.",
     "test_period": [
       "2026-07-20T06:20:41Z",
-      null
+      "2026-07-22T13:00:00Z"
     ]
   },
   {
@@ -130,24 +130,31 @@
       "uncertainty": "paired_bootstrap_95pct_ci_2000_seed_13"
     },
     "sharpe": null,
-    "notes": "Pré-registro H4-R anterior ao cálculo. Inclui todos os eventos LoL encerrados retornados pela fonte com moneyline resolvida, preço histórico <= scheduled_at-15min, idade <=48h e identidade inequívoca no banco local. Sem filtro posterior por liga, favorito ou resultado. Modelo reconstruído somente com mapas de data estritamente anterior ao evento. Sinal shadow quando |p_model-p_market|>=0.05, flat 1 unidade, sem aposta real. SUFICIENTE para descrição se n>=50; resultado permanece exploratório e não reduz o gate prospectivo H4. | RESULTADO: n=177 em 28 competições (2026-05-12..07-20); Brier Elo=0.4320 vs mercado=0.4023; diferença pareada +0.0297, IC95% [-0.0068,+0.0683]. ROI shadow +10.57% em 116 sinais, IC95% [-11.82%,+33.70%]. INCONCLUSIVA: ambos os ICs cruzam zero; ponto estimado de Brier favorece o mercado.",
+    "notes": "Pré-registro H4-R anterior ao cálculo. Inclui todos os eventos LoL encerrados retornados pela fonte com moneyline resolvida, preço histórico <= scheduled_at-15min, idade <=48h e identidade inequívoca no banco local. Sem filtro posterior por liga, favorito ou resultado. Modelo reconstruído somente com mapas de data estritamente anterior ao evento. Sinal shadow quando |p_model-p_market|>=0.05, flat 1 unidade, sem aposta real. SUFICIENTE para descrição se n>=50; resultado permanece exploratório e não reduz o gate prospectivo H4. | RESULTADO: n=177 em 28 competições (2026-05-12..07-20); Brier Elo=0.4320 vs mercado=0.4023; diferença pareada +0.0297, IC95% [-0.0068,+0.0683]. ROI shadow +10.57% em 116 sinais, IC95% [-11.82%,+33.70%]. INCONCLUSIVA: ambos os ICs cruzam zero; ponto estimado de Brier favorece o mercado. | CORREÇÃO 2026-08-01: test_period[0] preenchido com period_start do artefato versionado data/reports/h4r_polymarket_retrospective_2026-07-20.json (2026-05-12T12:00:00Z) — início empírico real da amostra retrospectiva, não estimado.",
     "test_period": [
-      null,
+      "2026-05-12T12:00:00Z",
       "2026-07-20T06:35:00Z"
     ]
-  }
-  ,{
+  },
+  {
     "name": "h4-lol-market-shadow-prospectivo-v2",
     "registered_at": "2026-07-22T13:00:00Z",
     "params": {
-      "source": "polymarket-clob", "source_kind": "prediction_market",
-      "market": "series_moneyline", "mode": "shadow_read_only_no_trading",
+      "source": "polymarket-clob",
+      "source_kind": "prediction_market",
+      "market": "series_moneyline",
+      "mode": "shadow_read_only_no_trading",
       "collection_start_exclusive": "2026-07-22T13:00:00Z",
-      "closing_cutoff_minutes_before_start": 15, "max_spread": 0.1,
-      "min_liquidity": 1000, "min_matured_matches": 50,
-      "min_shadow_signals": 30, "min_calendar_days": 30,
-      "min_competitions": 3, "edge_threshold": 0.05,
-      "stake": "flat_1_unit_simulated", "model": "elo-fase0-series-probability",
+      "closing_cutoff_minutes_before_start": 15,
+      "max_spread": 0.1,
+      "min_liquidity": 1000,
+      "min_matured_matches": 50,
+      "min_shadow_signals": 30,
+      "min_calendar_days": 30,
+      "min_competitions": 3,
+      "edge_threshold": 0.05,
+      "stake": "flat_1_unit_simulated",
+      "model": "elo-fase0-series-probability",
       "market_probability": "normalized_clob_midpoint",
       "primary_metric": "paired_brier_model_minus_market",
       "economic_metric": "flat_stake_shadow_roi",
@@ -155,6 +162,9 @@
     },
     "sharpe": null,
     "notes": "H4-v2 substitui a coorte prospectiva anterior somente para decisão: a auditoria de 2026-07-22 demonstrou que as cotações anteriores não tinham competição/evento/provenance/resultados completos. Critérios idênticos, coorte nova, sem trading.",
-    "test_period": ["2026-07-22T13:00:00Z", null]
+    "test_period": [
+      "2026-07-22T13:00:00Z",
+      null
+    ]
   }
 ]
