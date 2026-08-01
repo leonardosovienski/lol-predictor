@@ -234,7 +234,9 @@ def validate_trials(trials: list[dict]) -> list[str]:
     (ISO-8601 UTC 'Z'), params (dict NÃO-vazio — a configuração exata), sharpe
     (None ou número finito, unidade por-período), notes (str).
     Opcionais tipados: features_used (list[str]), train_period/test_period
-    ([início, fim] ISO-8601).
+    ([início, fim] ISO-8601; um dos dois lados pode ser None — limite aberto de
+    uma coorte prospectiva ainda sem fim ou retrospectiva sem início definido —
+    mas não os dois, que não declarariam período nenhum).
     """
     errs: list[str] = []
     seen: set[str] = set()
@@ -286,9 +288,15 @@ def validate_trials(trials: list[dict]) -> list[str]:
             errs.append(f"{tag}: metric inválida ({metric!r}) — str não-vazia quando presente")
         for key in ("train_period", "test_period"):
             per = t.get(key)
-            if per is not None and not (isinstance(per, list) and len(per) == 2
-                                        and all(isinstance(x, str) for x in per)):
-                errs.append(f"{tag}: {key} inválido — [início, fim] ISO-8601")
+            if per is not None:
+                # Cada lado é str (fechado) ou None (aberto: coorte prospectiva
+                # sem fim ainda, ou retrospectiva sem início definido) — mas os
+                # dois None ao mesmo tempo não declaram período nenhum.
+                shape_ok = (isinstance(per, list) and len(per) == 2
+                            and all(x is None or isinstance(x, str) for x in per))
+                if not shape_ok or per == [None, None]:
+                    errs.append(f"{tag}: {key} inválido — [início, fim] ISO-8601, "
+                                "um lado pode ser None (limite aberto) mas não os dois")
         fu = t.get("features_used")
         if fu is not None and not (isinstance(fu, list)
                                    and all(isinstance(x, str) for x in fu)):

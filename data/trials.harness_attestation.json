@@ -1,6 +1,11 @@
 {
-  "passed_at": "2026-07-11T06:15:34+00:00",
+  "schema_version": "pipeline-power/2",
+  "passed_at": "2026-08-01T05:39:30+00:00",
+  "expires_at": "2026-08-08T05:39:30+00:00",
+  "core_version": "2.1.0-ga-20260801",
   "evaluate": "evaluate",
   "edge_verdict": "COMPROVADA",
-  "note": "criterio Brier<baseline + DM p<0.05; edge=+100 Elo oculto; ruido=jitter 5pp; 1500 jogos/braço; seed 13"
+  "note": "criterio Brier<baseline + DM p<0.05; edge=+100 Elo oculto; ruido=jitter 5pp; 1500 jogos/braço; seed 13",
+  "metric": "brier",
+  "pipeline_fingerprint": "3f05668ef91a097a5fc4da348d52d72c4d3c7b3bb6f08cfe12baaa4e87d30cbb"
 }
