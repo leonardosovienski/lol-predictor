@@ -1,5 +1,29 @@
 # HANDOFF.md — lol-predictor
 
+> ## 🔄 CORREÇÃO — banner "ESTADO FINAL" abaixo ficou desatualizado no mesmo dia (2026-08-01)
+>
+> O banner "ESTADO FINAL — PRODUCTION_READY_COLLECTION_ONLY" logo abaixo
+> (commit `99c50c9`, 2026-07-25 05:03 -03:00) afirma que H4 V2 permanece
+> `CLOSED_BY_HUMAN_DECISION` e que `lol-market-shadow` permanece `Disabled`.
+> Isso deixou de ser verdade ainda naquele mesmo dia: a coorte foi
+> **reaberta legitimamente às 2026-07-25T22:47:33Z**
+> (`data/h4_v2_closure.json`, `scientific_status: REOPENED_BY_HUMAN_DECISION`,
+> decisão do operador executada pelo Claude Code a seu pedido explícito),
+> registrada no commit `46df8db` ("fix(h4): guard falhava ABERTO na remocao,
+> e produtor de resultados que faltava", 2026-07-26 01:31 -03:00). Antes
+> desse commit o único jeito mecânico de reabrir a coorte era apagar o
+> artefato de encerramento — agora existe um caminho legítimo que exige
+> `reopened_at_utc`, `reopening_decision` e `supersedes_commit`, e a remoção
+> do arquivo passou a falhar fechado em vez de reabrir por acidente.
+>
+> Estado atual: a coleta prospectiva de H4 V2 está **ativa novamente**. Os
+> contadores da coorte encerrada em 07-23 (0/50 partidas, 0/30 sinais, 0/3
+> competições, 0,67/30 dias) ficam preservados em `previous_closure` dentro
+> do próprio `data/h4_v2_closure.json`; a contagem nova começa do zero a
+> partir da reabertura. Nada foi aprovado nem refutado por isso — só a
+> coleta foi retomada. Operação com dinheiro real segue permanentemente
+> `NO_GO` em `betting.py`, inalterada por esta reabertura.
+
 > ## ESTADO FINAL — PRODUCTION_READY_COLLECTION_ONLY (2026-07-25)
 >
 > A coleta arquivística `lol-archival-collection` está ativa via
