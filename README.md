@@ -96,8 +96,11 @@ src/
 data/teams_lol.json         # 30 times Tier 1 (LCK 10, LPL 10, LEC 6, LCS 4)
 scripts/ci_check.py         # 3 barreiras: pytest, .ps1 ASCII, parse+smoke
 tests/                      # suíte estrita: modelo, serving, lifecycle, refresh e higiene
-wheelhouse/                 # wheels externos predictor_core 2.1 / predictor_ops 2.0
 ```
+
+`predictor-core`/`predictor-ops` não são vendorizados: são wheels externas resolvidas
+via `[tool.uv.sources]` a partir das GitHub Releases de core-predictor/tools-predictor,
+com hash fixado em `uv.lock`.
 
 ## Roadmap
 
