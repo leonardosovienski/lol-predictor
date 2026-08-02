@@ -1,13 +1,13 @@
 """Immutable-in-content provenance record for regenerated local artifacts."""
+
 from __future__ import annotations
 
 import hashlib
 import json
 import os
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 RUNTIME_MANIFEST_SCHEMA = "lol-runtime-artifacts/1.0"
 ARTIFACTS = {
@@ -39,7 +39,7 @@ def build_runtime_manifest(root: Path | str, *, generated_at: datetime | None = 
         if not path.is_file():
             raise RuntimeManifestError(f"runtime artifact is missing: {filename}")
         hashes[label] = _sha256(path)
-    timestamp = (generated_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    timestamp = (generated_at or datetime.now(UTC)).astimezone(UTC)
     return {
         "schema_version": RUNTIME_MANIFEST_SCHEMA,
         "generated_at_utc": timestamp.isoformat(timespec="seconds").replace("+00:00", "Z"),

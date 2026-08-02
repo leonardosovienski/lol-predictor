@@ -1,31 +1,41 @@
-name: CI Pipeline
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-permissions:
-  contents: read
-
+name: CI
+on: [push, pull_request]
+permissions: {contents: read}
 jobs:
-  validate:
-    name: Test suite
+  quality:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: {python: ["3.13", "3.14"]}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with: {python-version: "${{ matrix.python }}"}
+      - run: uv sync --all-groups --python ${{ matrix.python }}
+      - run: uv run ruff check src
+      - run: uv run ruff format --check src
+      - run: uv run pyright
+      - run: uv run pytest --cov=src --cov-branch --cov-report=term-missing --cov-fail-under=0
+      - name: Homologated runtime branch coverage
+        run: >-
+          uv run pytest
+          --cov=src.model --cov=src.predict --cov=src.config --cov=src.data.ingestion
+          --cov=src.h4_gate --cov=src.settings --cov=src.plugin --cov=src.services
+          --cov-branch --cov-report=term-missing --cov-fail-under=80
+      - run: uv build
+      - run: uv run lol-predictor validate-env .env.example
+      - run: uv run lol-scheduler validate jobs.json
+  container:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt -r requirements-dev.txt
-
-      - name: Run complete test suite
-        run: PYTHONPATH=.:vendor python -m pytest -v
+      - uses: actions/checkout@v4
+      - run: docker build -t lol-predictor:test .
+      - run: docker run --rm --read-only --tmpfs /tmp lol-predictor:test health
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gitleaks/gitleaks-action@v2
+      - uses: anchore/sbom-action@v0
+        with: {path: ".", output-file: "sbom.spdx.json"}

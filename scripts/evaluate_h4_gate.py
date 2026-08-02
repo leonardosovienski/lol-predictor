@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse, json, subprocess, sys
 from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
 from src.h4_gate import H4Error, evaluate  # noqa: E402
 
 def main(argv=None) -> int:

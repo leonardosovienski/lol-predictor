@@ -10,8 +10,6 @@ from contextlib import contextmanager
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "vendor"))
 
 from predictor_core.data.contracts import DataUnavailableError  # noqa: E402
 from predictor_core.kernel.jsonl_store import JsonlStore  # noqa: E402

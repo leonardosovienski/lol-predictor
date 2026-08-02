@@ -15,6 +15,7 @@ Uso prequential (backtest_calibracao.py): o calibrador só enxerga pares
 data/calibration_platt.json (ajustados no histórico completo) — model.py
 aplica quando o arquivo existe.
 """
+
 import json
 import math
 from pathlib import Path
@@ -42,8 +43,7 @@ class PlattCalibrator:
         self.a = float(a)
         self.b = float(b)
 
-    def fit(self, probs: list[float], outcomes: list[int],
-            iters: int = 25) -> "PlattCalibrator":
+    def fit(self, probs: list[float], outcomes: list[int], iters: int = 25) -> "PlattCalibrator":
         """Newton-Raphson na NLL. outcomes: 1 = evento aconteceu."""
         if len(probs) != len(outcomes) or len(probs) < 10:
             raise ValueError("amostra insuficiente/inconsistente para o Platt")
@@ -51,7 +51,7 @@ class PlattCalibrator:
         a, b = self.a, self.b
         for _ in range(iters):
             g_a = g_b = h_aa = h_ab = h_bb = 0.0
-            for z, y in zip(zs, outcomes):
+            for z, y in zip(zs, outcomes, strict=False):
                 q = _sigmoid(a * z + b)
                 d = q - y
                 w = max(q * (1.0 - q), 1e-9)
@@ -78,8 +78,7 @@ class PlattCalibrator:
     # ---- persistência (serving) ----
     def save(self, path: Path | str, meta: dict | None = None) -> None:
         out = {"a": round(self.a, 6), "b": round(self.b, 6), **(meta or {})}
-        Path(path).write_text(json.dumps(out, ensure_ascii=False, indent=2)
-                              + "\n", encoding="utf-8")
+        Path(path).write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     @classmethod
     def load(cls, path: Path | str) -> "PlattCalibrator | None":

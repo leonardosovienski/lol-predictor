@@ -1,20 +1,18 @@
 """Configuração do lol-predictor — carrega config.yaml e resolve paths.
 
 Mesmo padrão do nba/cs-predictor: YAML na raiz é a única fonte de parâmetros;
-vendor/ entra no sys.path aqui.
+Shared packages are installed wheels; no path injection occurs here.
 """
+
 import json
-import sys
+import os
 import unicodedata
 from functools import lru_cache
 from pathlib import Path
 
 import yaml
 
-ROOT = Path(__file__).resolve().parent.parent
-_VENDOR = ROOT / "vendor"
-if str(_VENDOR) not in sys.path:
-    sys.path.insert(0, str(_VENDOR))
+ROOT = Path(os.environ.get("LOL_PROJECT_ROOT", Path(__file__).resolve().parent.parent)).resolve()
 
 
 @lru_cache(maxsize=1)
@@ -77,8 +75,7 @@ def resolve_team(name: str) -> dict:
     # primeira silenciosamente. O mesmo vale para duas grafias NFC/NFD no JSON.
     if len(exact_teams) > 1 or len(exact_ratings) > 1:
         details = [(t["name"], t.get("region")) for t in exact_teams]
-        raise ValueError(f"identidade de time ambígua para {name!r}: "
-                         f"teams={details}, ratings={exact_ratings}")
+        raise ValueError(f"identidade de time ambígua para {name!r}: teams={details}, ratings={exact_ratings}")
     if exact_teams:
         return exact_teams[0]
     if exact_ratings:
@@ -91,8 +88,7 @@ def resolve_team(name: str) -> dict:
     # um hit único do Top 30 só vence se ratings.json não tiver OUTRA
     # entidade também batendo — senão é ambíguo (família LOUD/Cloud9)
     if len(hits) == 1:
-        extra = [n for n in rhits
-                 if _identity_key(n) != _identity_key(hits[0]["name"])]
+        extra = [n for n in rhits if _identity_key(n) != _identity_key(hits[0]["name"])]
         if not extra:
             return hits[0]
     # 2+ times do Top 30 batendo já é ambíguo — não cair silenciosamente
@@ -101,5 +97,4 @@ def resolve_team(name: str) -> dict:
         return {"name": rhits[0]}
 
     sugestao = [t["name"] for t in hits] + rhits
-    raise ValueError(f"time desconhecido: {name!r}"
-                     + (f" — você quis dizer {sugestao}?" if sugestao else ""))
+    raise ValueError(f"time desconhecido: {name!r}" + (f" — você quis dizer {sugestao}?" if sugestao else ""))

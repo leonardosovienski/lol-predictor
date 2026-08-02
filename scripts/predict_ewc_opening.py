@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
 from src.config import clear_caches, load_teams, resolve_team  # noqa: E402
 from src.model import EloModel, FORMAT_HOURS  # noqa: E402
 from predictor_core.data.contracts import PredictionPoint  # noqa: E402

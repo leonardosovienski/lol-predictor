@@ -10,12 +10,14 @@ provider colapsa as duas linhas de time num registro de JOGO (mapa).
 A Riot API segue descartada para esports (sem endpoint público estável);
 `RiotProvider` permanece como stub documentado.
 """
+
 import csv
 import os
 from pathlib import Path
 
-from ..config import ROOT as _ROOT  # noqa: F401  (ativa vendor no sys.path)
 from predictor_core.data.contracts import DataUnavailableError
+
+from ..config import ROOT as _ROOT  # noqa: F401
 
 
 class OracleProvider:
@@ -37,8 +39,8 @@ class OracleProvider:
         files = sorted(self.raw_dir.glob("*.csv"))
         if not files:
             raise DataUnavailableError(
-                f"nenhum CSV em {self.raw_dir} — baixe do Drive do Oracle's "
-                "Elixir (ver docstring do módulo)")
+                f"nenhum CSV em {self.raw_dir} — baixe do Drive do Oracle's Elixir (ver docstring do módulo)"
+            )
         pend: dict[str, dict] = {}
         for f in files:
             with open(f, encoding="utf-8", newline="") as fh:
@@ -50,10 +52,12 @@ class OracleProvider:
                     gid = row.get("gameid")
                     if not gid:
                         continue
-                    side = {"side": row.get("side"),
-                            "team": (row.get("teamname") or "").strip(),
-                            "result": row.get("result"),
-                            "kills": row.get("teamkills")}
+                    side = {
+                        "side": row.get("side"),
+                        "team": (row.get("teamname") or "").strip(),
+                        "result": row.get("result"),
+                        "kills": row.get("teamkills"),
+                    }
                     if gid not in pend:
                         pend[gid] = {"row": row, "sides": [side]}
                     else:
@@ -68,8 +72,7 @@ class OracleProvider:
         # jogos com só 1 linha de time (dado quebrado) são descartados calados?
         # Não: reporta a contagem pra ninguém achar que cobriu tudo.
         if pend:
-            print(f"aviso: {len(pend)} jogo(s) com linha de time única "
-                  "(dado incompleto no CSV) — descartados")
+            print(f"aviso: {len(pend)} jogo(s) com linha de time única (dado incompleto no CSV) — descartados")
 
     @staticmethod
     def _merge(gid: str, entry: dict) -> dict:
@@ -95,9 +98,11 @@ class OracleProvider:
             "league": row.get("league"),
             "split": row.get("split"),
             "game": _i(row.get("game")),
-            "team_a": blue["team"], "team_b": red["team"],
+            "team_a": blue["team"],
+            "team_b": red["team"],
             "winner": "a" if blue["result"] == "1" else "b",
-            "kills_a": _i(blue["kills"]), "kills_b": _i(red["kills"]),
+            "kills_a": _i(blue["kills"]),
+            "kills_b": _i(red["kills"]),
             "completeness": row.get("datacompleteness"),
         }
 
