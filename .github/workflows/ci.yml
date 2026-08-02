@@ -26,16 +26,36 @@ jobs:
       - run: uv build
       - run: uv run lol-predictor validate-env .env.example
       - run: uv run lol-scheduler validate jobs.json
+      - name: wheel smoke outside checkout
+        run: |
+          uv venv /tmp/lol-wheel --python ${{ matrix.python }} --seed
+          /tmp/lol-wheel/bin/pip install dist/*.whl \
+            "predictor-core @ https://github.com/leonardosovienski/core-predictor/releases/download/v2.1.0/predictor_core-2.1.0-py3-none-any.whl" \
+            "predictor-ops @ https://github.com/leonardosovienski/tools-predictor/releases/download/v2.0.1/predictor_ops-2.0.1-py3-none-any.whl"
+          cd /tmp
+          /tmp/lol-wheel/bin/lol-predictor validate-env "$OLDPWD/.env.example"
+          /tmp/lol-wheel/bin/lol-scheduler validate "$OLDPWD/jobs.json"
   container:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t lol-predictor:test .
       - run: docker run --rm --read-only --tmpfs /tmp lol-predictor:test health
+      - uses: anchore/sbom-action@v0
+        with:
+          image: lol-predictor:test
+          artifact-name: lol-predictor.spdx.json
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: lol-predictor:test
+          severity: CRITICAL,HIGH
+          exit-code: "1"
   security:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: anchore/sbom-action@v0
         with: {path: ".", output-file: "sbom.spdx.json"}

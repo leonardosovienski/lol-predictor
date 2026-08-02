@@ -1,8 +1,10 @@
 # Migração 2.0
 
 O runtime homologado é Python 3.13 com `uv`; 3.14 permanece experimental. `pyproject.toml`
-e `uv.lock` são as fontes oficiais. `predictor_core==2.1.0` e
-`predictor_ops==2.0.0` entram exclusivamente como wheels com hash fixado pelo lock.
+e `uv.lock` são as fontes oficiais. `predictor_core>=2.1,<3` e
+`predictor_ops>=2.0.1,<3` entram exclusivamente como wheels externas, publicadas como
+GitHub Releases de core-predictor/tools-predictor, com hash fixado pelo lock
+(`[tool.uv.sources]`) — não há wheelhouse vendorizado no repositório.
 
 ## Arquitetura
 
@@ -33,6 +35,8 @@ aparecem no relatório global; não são silenciosamente removidos da medição.
 
 ## Instalação local com artefatos
 
-Compare SHA-256 dos wheels com `uv.lock`, execute `uv sync --all-groups` e confirme
-`predictor_core.__file__`/`predictor_ops.__file__` em `site-packages`. Em produção, injete
-`LOL_PROJECT_ROOT` e `LOL_DATA_ROOT`; arquivos oficiais não são migrados destrutivamente.
+`uv sync --all-groups` baixa `predictor-core`/`predictor-ops` diretamente das URLs de
+GitHub Release declaradas em `[tool.uv.sources]`, validando o hash contra `uv.lock`.
+Confirme `predictor_core.__file__`/`predictor_ops.__file__` em `site-packages`. Em
+produção, injete `LOL_PROJECT_ROOT` e `LOL_DATA_ROOT`; arquivos oficiais não são
+migrados destrutivamente.
