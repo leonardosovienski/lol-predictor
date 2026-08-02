@@ -18,8 +18,6 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "vendor"))
 
 from src.model import win_probability                                  # noqa: E402
 from predictor_core.measurement.metrics import brier, diebold_mariano  # noqa: E402

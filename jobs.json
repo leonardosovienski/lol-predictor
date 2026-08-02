@@ -1,0 +1,1 @@
+{"schema_version":"1","jobs":[{"id":"lol-weekly-ingestion","command":["lol-predictor","health"],"timeout_seconds":900,"consumer_status":"SUCCEEDED"},{"id":"lol-settlement","command":["lol-predictor","health"],"timeout_seconds":300,"consumer_status":"SUCCEEDED"}]}

@@ -1,4 +1,5 @@
 """Small, local secret-redaction helpers for operational logs."""
+
 from __future__ import annotations
 
 import os
@@ -11,8 +12,7 @@ def collect_sensitive_values(environ: dict[str, str] | None = None) -> set[str]:
     """Return non-empty values of conventionally sensitive environment keys."""
     values = environ if environ is not None else os.environ
     return {
-        value for key, value in values.items()
-        if value and any(marker in key.upper() for marker in _SENSITIVE_MARKERS)
+        value for key, value in values.items() if value and any(marker in key.upper() for marker in _SENSITIVE_MARKERS)
     }
 
 

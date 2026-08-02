@@ -65,16 +65,17 @@ desempenho por patch.
 ## Uso
 
 ```bash
-.venv\Scripts\python.exe -m src.predict T1 Gen.G --format bo3
+uv run lol-predictor predict T1 Gen.G --format bo3
 .venv\Scripts\python.exe -m src.predict T1 Gen.G --market kills --kills-line 26.5 --json
 .venv\Scripts\python.exe -m src.predict "Bilibili Gaming" "G2 Esports" --format bo5
 
 # Testes e CI
-.venv\Scripts\python.exe -m pytest tests/ -v -W error
-.venv\Scripts\python.exe scripts/ci_check.py
+uv run pytest -v -W error
+uv run ruff check src
+uv run pyright
 
-# Scheduler semanal + prova inofensiva do caminho Windows Scheduler
-powershell -ExecutionPolicy Bypass -File scripts\install_weekly_task.ps1 -Verify
+# Scheduler portátil e validado pelo predictor_ops
+uv run lol-scheduler validate jobs.json
 ```
 
 Previsões oficiais de evento usam horário explícito, são bloqueadas a partir de
@@ -88,14 +89,14 @@ prova forward. Previsões ad hoc do CLI vão para `data/predictions_adhoc.jsonl`
 ```
 config.yaml                 # game, formato/linha default, K base, placeholders
 src/
-  config.py                 # load_config/load_teams/resolve_team (+vendor no path)
+  config.py                 # load_config/load_teams/resolve_team
   model.py                  # EloModel (match/kills/update_ratings)
   predict.py                # CLI de serving + PredictionPoint + telemetria
   data/riot_provider.py     # stub (Riot API vs Oracle's Elixir — decisão da Fase 1)
 data/teams_lol.json         # 30 times Tier 1 (LCK 10, LPL 10, LEC 6, LCS 4)
 scripts/ci_check.py         # 3 barreiras: pytest, .ps1 ASCII, parse+smoke
 tests/                      # suíte estrita: modelo, serving, lifecycle, refresh e higiene
-vendor/predictor_core/      # v1.3.1 via sync_core (NÃO editar à mão)
+wheelhouse/                 # wheels externos predictor_core 2.1 / predictor_ops 2.0
 ```
 
 ## Roadmap

@@ -4,7 +4,6 @@ import argparse, json, os, tempfile, sys
 from datetime import datetime
 from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
 from src.h4_gate import H4Error  # noqa: E402
 
 def _dt(value):

@@ -5,12 +5,13 @@ Lê os CSVs locais de data/raw/, filtra as ligas do config e grava a tabela
 
 Uso: python -m src.ingest_oracle
 """
+
 import sys
 
 from . import db
 from .config import ROOT, load_config
-from .data.riot_provider import OracleProvider
 from .data.ingestion import SnapshotStore, assert_fresh_snapshot
+from .data.riot_provider import OracleProvider
 
 
 def run() -> None:
@@ -24,8 +25,7 @@ def run() -> None:
     payload = SnapshotStore(snapshot_root).current_payload()
     if payload is None:  # guarded above; helps static readers and error clarity
         raise RuntimeError("snapshot Oracle ativo ausente")
-    provider = OracleProvider(payload.parent,
-                              leagues=cfg.get("oracle", {}).get("leagues"))
+    provider = OracleProvider(payload.parent, leagues=cfg.get("oracle", {}).get("leagues"))
     if not provider.health_check():
         sys.exit("data/raw sem CSVs — baixe do Drive do Oracle's Elixir")
     conn = db.connect(str(ROOT / cfg.get("database", "data/lol.db")))
@@ -40,8 +40,7 @@ def run() -> None:
             total += db.upsert_games(conn, batch)
         n = conn.execute("SELECT COUNT(*) FROM games").fetchone()[0]
         dmin, dmax = conn.execute("SELECT MIN(date), MAX(date) FROM games").fetchone()
-        ligas = conn.execute(
-            "SELECT league, COUNT(*) FROM games GROUP BY 1 ORDER BY 2 DESC").fetchall()
+        ligas = conn.execute("SELECT league, COUNT(*) FROM games GROUP BY 1 ORDER BY 2 DESC").fetchall()
     finally:
         conn.close()
     print(f"games no banco: {n} ({dmin} .. {dmax})")

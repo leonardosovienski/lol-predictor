@@ -13,8 +13,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "vendor"))
 
 from src.config import load_teams  # noqa: E402
 from src.data.polymarket_provider import (  # noqa: E402

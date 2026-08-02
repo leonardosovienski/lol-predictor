@@ -2,7 +2,7 @@
 from __future__ import annotations
 import argparse, json, os, sys
 from pathlib import Path
-ROOT = Path(__file__).resolve().parent.parent; sys.path.insert(0, str(ROOT))
+ROOT = Path(__file__).resolve().parent.parent
 from src.collection_only import CollectionError, collect, health
 
 def _runtime_root() -> Path:

@@ -27,6 +27,11 @@ events.jsonl
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.ruff_cache/
+.coverage
+coverage.json
+dist/
+wheelhouse/
 
 # Ambientes
 .venv/

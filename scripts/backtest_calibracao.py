@@ -15,8 +15,6 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "vendor"))
 
 from src import db                                     # noqa: E402
 from src.calibration import PlattCalibrator            # noqa: E402
@@ -25,7 +23,6 @@ from predictor_core.measurement.metrics import (       # noqa: E402
     brier, calibration_table, diebold_mariano)
 from predictor_core.measurement.trials import TrialRegistry   # noqa: E402
 
-sys.path.insert(0, str(ROOT / "scripts"))
 from backtest_walkforward import run as run_prequential, _ln   # noqa: E402
 
 MIN_FIT = 300

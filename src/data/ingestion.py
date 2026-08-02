@@ -4,6 +4,7 @@ The module deliberately stays in the LoL domain.  It has no dependency on the
 shared core: source-specific CSV rules, retention, and freshness are not a
 cross-domain contract.
 """
+
 from __future__ import annotations
 
 import csv
@@ -14,15 +15,14 @@ import random
 import shutil
 import tempfile
 import time
+from collections.abc import Callable, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Callable, Mapping
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-
 
 SCHEMA_VERSION = "oracle-csv/1"
 INGESTION_VERSION = "2026.07.resilient.1"
@@ -35,11 +35,11 @@ class IngestionError(RuntimeError):
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _iso(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return value.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _parse_time(value: str, field: str) -> datetime:
@@ -49,7 +49,7 @@ def _parse_time(value: str, field: str) -> datetime:
         raise IngestionError(f"{field} inválido: {value!r}") from exc
     if parsed.tzinfo is None:
         raise IngestionError(f"{field} precisa de timezone: {value!r}")
-    return parsed.astimezone(timezone.utc)
+    return parsed.astimezone(UTC)
 
 
 def _sha256(path: Path) -> str:
@@ -111,8 +111,14 @@ def validate_oracle_csv(path: Path, *, min_rows: int = 2) -> dict[str, object]:
         "temporal_range_start": min(dates),
         "temporal_range_end": max(dates),
         "validations_executed": [
-            "non_empty", "size_limit", "utf8", "not_html", "required_columns",
-            "minimum_rows", "identity_coverage", "timestamps",
+            "non_empty",
+            "size_limit",
+            "utf8",
+            "not_html",
+            "required_columns",
+            "minimum_rows",
+            "identity_coverage",
+            "timestamps",
         ],
     }
 
@@ -173,9 +179,11 @@ class SnapshotStore:
             handle.seek(0)
             if os.name == "nt":
                 import msvcrt
+
                 msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
             else:
                 import fcntl
+
                 fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
             try:
                 yield
@@ -200,7 +208,9 @@ class SnapshotStore:
             if os.path.exists(tmp):
                 os.unlink(tmp)
 
-    def _publish_unlocked(self, source_file: Path, *, source: str, source_headers: Mapping[str, str] | None = None) -> dict[str, object]:
+    def _publish_unlocked(
+        self, source_file: Path, *, source: str, source_headers: Mapping[str, str] | None = None
+    ) -> dict[str, object]:
         summary = validate_oracle_csv(source_file)
         previous = self.current_metadata()
         if previous and isinstance(previous.get("temporal_range_end"), str):
@@ -223,8 +233,11 @@ class SnapshotStore:
             metadata: dict[str, object] = {
                 "source": source,
                 "retrieved_at": _iso(now),
+                "observed_at": f"{summary['temporal_range_end']}T23:59:59Z",
+                "available_at": _iso(now),
                 "source_last_modified": headers.get("last-modified"),
                 "sha256": digest,
+                "hash": digest,
                 "schema_version": SCHEMA_VERSION,
                 **summary,
                 "latest_patch": None,
@@ -239,12 +252,12 @@ class SnapshotStore:
             # directory is intentionally left for forensic inspection.
             raise
 
-    def publish(self, source_file: Path, *, source: str,
-                source_headers: Mapping[str, str] | None = None) -> dict[str, object]:
+    def publish(
+        self, source_file: Path, *, source: str, source_headers: Mapping[str, str] | None = None
+    ) -> dict[str, object]:
         """Validate, compare and publish as one serialized transaction."""
         with self._publication_lock():
-            return self._publish_unlocked(source_file, source=source,
-                                          source_headers=source_headers)
+            return self._publish_unlocked(source_file, source=source, source_headers=source_headers)
 
 
 def assert_fresh_snapshot(root: Path | str, *, max_age_hours: int, now: datetime | None = None) -> dict[str, object]:
@@ -253,25 +266,46 @@ def assert_fresh_snapshot(root: Path | str, *, max_age_hours: int, now: datetime
     payload = store.current_payload()
     if metadata is None or payload is None:
         raise IngestionError("nenhum snapshot publicado; serving bloqueado")
-    required = {"source", "retrieved_at", "sha256", "schema_version", "row_count", "source_status"}
+    required = {
+        "source",
+        "retrieved_at",
+        "observed_at",
+        "available_at",
+        "sha256",
+        "hash",
+        "schema_version",
+        "row_count",
+        "source_status",
+    }
     missing = required - set(metadata)
     if missing or metadata.get("source_status") != "PUBLISHED":
         raise IngestionError(f"metadata de snapshot incompleto: {sorted(missing)}")
-    if metadata.get("sha256") != _sha256(payload):
+    if metadata.get("sha256") != metadata.get("hash") or metadata.get("hash") != _sha256(payload):
         raise IngestionError("hash do snapshot não confere; serving bloqueado")
+    observed = _parse_time(str(metadata["observed_at"]), "observed_at")
+    available = _parse_time(str(metadata["available_at"]), "available_at")
+    if observed > available:
+        raise IngestionError("snapshot temporal contract is regressive")
     reference = now or _utc_now()
     age = reference - _parse_time(str(metadata["retrieved_at"]), "retrieved_at")
     if age < timedelta(minutes=-5) or age > timedelta(hours=max_age_hours):
         raise IngestionError(f"snapshot fora da janela de frescor ({age.total_seconds() / 3600:.1f}h)")
-    return metadata
+    return {**metadata, "staleness_hours": age.total_seconds() / 3600}
 
 
 class ConditionalDownloader:
     """Bounded HTTP fetcher with persisted validators and no partial publish."""
 
-    def __init__(self, store: SnapshotStore, *, policy: DownloadPolicy = DownloadPolicy(),
-                 opener: Callable[..., object] = urlopen, sleeper: Callable[[float], None] = time.sleep,
-                 clock: Callable[[], float] = time.monotonic, rng: Callable[[], float] = random.random):
+    def __init__(
+        self,
+        store: SnapshotStore,
+        *,
+        policy: DownloadPolicy = DownloadPolicy(),
+        opener: Callable[..., object] = urlopen,
+        sleeper: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.monotonic,
+        rng: Callable[[], float] = random.random,
+    ):
         self.store, self.policy = store, policy
         self.opener, self.sleeper, self.clock, self.rng = opener, sleeper, clock, rng
 
@@ -325,18 +359,28 @@ class ConditionalDownloader:
                 previous = self.store.current_metadata()
                 validate_oracle_csv(temporary)
                 if previous and previous.get("sha256") == _sha256(temporary):
-                    self.store._atomic_json(self.store.cache_state, {
-                        "url": url, "etag": response_headers.get("ETag") or response_headers.get("Etag"),
-                        "last_modified": response_headers.get("Last-Modified"), "sha256": previous["sha256"],
-                        "last_success_at": _iso(_utc_now()),
-                    })
+                    self.store._atomic_json(
+                        self.store.cache_state,
+                        {
+                            "url": url,
+                            "etag": response_headers.get("ETag") or response_headers.get("Etag"),
+                            "last_modified": response_headers.get("Last-Modified"),
+                            "sha256": previous["sha256"],
+                            "last_success_at": _iso(_utc_now()),
+                        },
+                    )
                     return "UNCHANGED", previous
                 metadata = self.store.publish(temporary, source=url, source_headers=response_headers)
-                self.store._atomic_json(self.store.cache_state, {
-                    "url": url, "etag": response_headers.get("ETag") or response_headers.get("Etag"),
-                    "last_modified": response_headers.get("Last-Modified"), "sha256": metadata["sha256"],
-                    "last_success_at": _iso(_utc_now()),
-                })
+                self.store._atomic_json(
+                    self.store.cache_state,
+                    {
+                        "url": url,
+                        "etag": response_headers.get("ETag") or response_headers.get("Etag"),
+                        "last_modified": response_headers.get("Last-Modified"),
+                        "sha256": metadata["sha256"],
+                        "last_success_at": _iso(_utc_now()),
+                    },
+                )
                 return "PUBLISHED", metadata
             except HTTPError as exc:
                 if exc.code == 304 and self.store.current_payload() is not None:
@@ -347,19 +391,30 @@ class ConditionalDownloader:
                 exc.close()
             except (URLError, TimeoutError, ConnectionError, OSError, IngestionError) as exc:
                 final_error, response_headers = str(exc), {}
-                retryable = not isinstance(exc, IngestionError) or not final_error.startswith((
-                    "resposta HTML", "schema", "linha", "timestamp", "amostra", "arquivo", "regressão", "snapshot"))
+                retryable = not isinstance(exc, IngestionError) or not final_error.startswith(
+                    ("resposta HTML", "schema", "linha", "timestamp", "amostra", "arquivo", "regressão", "snapshot")
+                )
             finally:
                 if temporary is not None:
                     temporary.unlink(missing_ok=True)
-            if not retryable or attempt >= self.policy.max_attempts or self.clock() - started >= self.policy.max_execution_seconds:
+            if (
+                not retryable
+                or attempt >= self.policy.max_attempts
+                or self.clock() - started >= self.policy.max_execution_seconds
+            ):
                 break
             delay = self._delay(attempt, response_headers)
             if self.clock() - started + delay > self.policy.max_execution_seconds:
                 break
             self.sleeper(delay)
-        self.store._atomic_json(self.store.root / "last_failure.json", {
-            "status": "FAILED", "url": url, "error": final_error,
-            "recorded_at": _iso(_utc_now()), "attempts": self.policy.max_attempts,
-        })
+        self.store._atomic_json(
+            self.store.root / "last_failure.json",
+            {
+                "status": "FAILED",
+                "url": url,
+                "error": final_error,
+                "recorded_at": _iso(_utc_now()),
+                "attempts": self.policy.max_attempts,
+            },
+        )
         raise IngestionError(f"download falhou após tentativas limitadas: {final_error}")

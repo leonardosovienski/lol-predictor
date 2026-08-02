@@ -8,7 +8,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 import sys
-sys.path.insert(0, str(ROOT))
 from src.h4_gate import cohort_status  # noqa: E402
 
 
