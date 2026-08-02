@@ -31,8 +31,9 @@ tentativas históricas e runbook.
 > com `ratings_file` customizado, NaN/Inf em ratings, substring ambígua no
 > `resolve_team`, `prediction_id` desconhecido na maturação, ausência de
 > normalização Unicode NFC, colisão regional, timestamps, série incompleta e
-> concorrência/atomicidade de ratings e lifecycle). Suíte atual: 81
-> testes verdes (`tests/test_hostile_audit.py`). Detalhe em `HANDOFF.md`.
+> concorrência/atomicidade de ratings e lifecycle). Na época: 81 testes verdes
+> só em `tests/test_hostile_audit.py` (suíte completa atual, verificada em
+> CI: 148 testes verdes). Detalhe em `HANDOFF.md`.
 
 Laboratório de previsão de **partidas de League of Legends** (vencedor da
 série e total de abates), sétimo consumidor do ecossistema `predictor_core`.
