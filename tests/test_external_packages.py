@@ -11,4 +11,22 @@ def test_shared_dependencies_are_external_wheels():
 
 def test_plugin_entry_point_is_loadable():
     plugin = next(ep for ep in entry_points(group="predictor.plugins") if ep.name == "lol").load()
-    assert plugin().health()["domain"] == "lol"
+    instance = plugin()
+    assert instance.health()["domain"] == "lol"
+    assert callable(instance.capabilities)
+    assert instance.capabilities()["supports_prediction"] is True
+
+
+def test_plugin_accepts_gateway_wire_request(monkeypatch, tmp_path):
+    from src.plugin import LolPredictorPlugin
+
+    plugin = LolPredictorPlugin()
+    monkeypatch.setattr(
+        "src.plugin.PredictionService.predict",
+        lambda _self, request: {"team_a": request.team_a, "team_b": request.team_b, "format": request.format},
+    )
+    monkeypatch.setattr("src.plugin.Settings.data_root", tmp_path, raising=False)
+
+    result = plugin.predict({"team_a": "T1", "team_b": "Gen.G", "format": "bo3"})
+
+    assert result == {"team_a": "T1", "team_b": "Gen.G", "format": "bo3"}

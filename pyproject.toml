@@ -18,7 +18,7 @@ lol-predictor = "src.cli:main"
 lol-scheduler = "src.cli:scheduler_main"
 
 [project.entry-points."predictor.plugins"]
-lol = "src.plugin:LolPredictorPlugin"
+lol = "lol_predictor_plugin:Plugin"
 
 [dependency-groups]
 dev = ["build>=1.3", "pre-commit>=4.3", "pyright>=1.1.403", "pytest>=8.4", "pytest-cov>=6.2", "ruff>=0.12"]
@@ -28,7 +28,7 @@ predictor-core = { path = "wheelhouse/predictor_core-2.1.0-py3-none-any.whl" }
 predictor-ops = { path = "wheelhouse/predictor_ops-2.0.0-py3-none-any.whl" }
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["src", "lol_predictor_plugin"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers"
