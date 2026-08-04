@@ -17,6 +17,18 @@ não usa silenciosamente um CSV raw expirado. Consulte
 [`docs/INGESTION_RESILIENCE.md`](docs/INGESTION_RESILIENCE.md) para o contrato,
 tentativas históricas e runbook.
 
+**\* Exceção registrada (2026-08-03):** `data/manual_upload/` contém CSVs
+brutos do Oracle's Elixir (2025 e 2026) commitados diretamente no
+repositório, por decisão explícita do operador — não pelo caminho normal de
+download automático. Isto é uma **exceção deliberada** à regra de que dado
+bruto de terceiro nunca entra no controle de versão (a mesma razão pela qual
+`data/raw/`, `data/ingestion/` e `data/lol.db*` estão no `.gitignore`).
+Motivo: o proxy de rede de um ambiente de execução usado nesta sessão
+bloqueava o host oficial do Google Drive, então os CSVs foram enviados
+manualmente para permitir verificação end-to-end da ingestão. Ver
+[`data/manual_upload/README.md`](data/manual_upload/README.md) para o
+detalhe completo e a orientação de quando remover.
+
 > **Status: Fase 1 CONCLUÍDA (2026-07-11).** Backtest prequential sobre
 > 3.877 mapas do Oracle's Elixir: **H1 (Elo vencedor) COMPROVADA** (Brier
 > 0,4432 vs banda 0,4612, acerto 64,6%, DM p=0,0006) e **H2 (abates por time)
