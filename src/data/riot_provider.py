@@ -55,6 +55,7 @@ class OracleProvider:
                     side = {
                         "side": row.get("side"),
                         "team": (row.get("teamname") or "").strip(),
+                        "team_id": (row.get("teamid") or "").strip(),
                         "result": row.get("result"),
                         "kills": row.get("teamkills"),
                     }
@@ -100,6 +101,8 @@ class OracleProvider:
             "game": _i(row.get("game")),
             "team_a": blue["team"],
             "team_b": red["team"],
+            "team_a_id": blue["team_id"],
+            "team_b_id": red["team_id"],
             "winner": "a" if blue["result"] == "1" else "b",
             "kills_a": _i(blue["kills"]),
             "kills_b": _i(red["kills"]),

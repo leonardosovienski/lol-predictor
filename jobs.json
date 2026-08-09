@@ -1,1 +1,54 @@
-{"schema_version":"1","jobs":[{"id":"lol-weekly-ingestion","command":["lol-predictor","health"],"timeout_seconds":900,"consumer_status":"SUCCEEDED"},{"id":"lol-settlement","command":["lol-predictor","health"],"timeout_seconds":300,"consumer_status":"SUCCEEDED"}]}
+{
+  "schema_version": "1",
+  "jobs": [
+    {
+      "id": "lol-weekly-ingestion",
+      "command": ["lol-predictor", "ingest", "--source", "oracles"],
+      "timeout_seconds": 1200,
+      "expected_artifact": "data/ingestion/current.json",
+      "scientific_state": "COLLECTION_ONLY"
+    },
+    {
+      "id": "lol-collect-holdout",
+      "command": ["lol-predictor", "collect-holdout", "--horizon-hours", "168"],
+      "timeout_seconds": 600,
+      "expected_artifact": "data/holdout/latest.json",
+      "scientific_state": "COLLECTION_ONLY"
+    },
+    {
+      "id": "lol-publish-snapshot",
+      "command": ["lol-predictor", "publish-snapshot"],
+      "timeout_seconds": 300,
+      "expected_artifact": "data/ingestion/current.json",
+      "scientific_state": "COLLECTION_ONLY"
+    },
+    {
+      "id": "lol-backtest",
+      "command": ["lol-predictor", "backtest"],
+      "timeout_seconds": 1800,
+      "expected_artifact": "data/backtest_manifest.json",
+      "scientific_state": "HYPOTHESIS_REGISTERED"
+    },
+    {
+      "id": "lol-publish-freeze",
+      "command": ["lol-predictor", "publish-freeze"],
+      "timeout_seconds": 300,
+      "expected_artifact": "data/current_freeze.json",
+      "scientific_state": "DATASET_FROZEN"
+    },
+    {
+      "id": "lol-settlement",
+      "command": ["lol-predictor", "settle", "--results", "data/shadow/h4_results.json"],
+      "timeout_seconds": 600,
+      "expected_artifact": "data/settlement/latest.json",
+      "scientific_state": "SHADOW"
+    },
+    {
+      "id": "lol-collect-shadow",
+      "command": ["lol-predictor", "collect-shadow"],
+      "timeout_seconds": 600,
+      "expected_artifact": "data/shadow/h4_signals.jsonl",
+      "scientific_state": "SHADOW"
+    }
+  ]
+}

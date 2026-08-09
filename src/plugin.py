@@ -50,16 +50,21 @@ class LolPredictorPlugin:
     def predict(self, request: PredictionRequest | dict[str, Any]) -> dict[str, Any]:
         request = self._request(request)
         return PredictionService(
-            self.settings.data_root / "ingestion", max_age_hours=self.settings.max_snapshot_staleness_hours
+            self.settings.data_root / "ingestion",
+            project_root=self.settings.project_root,
+            max_age_hours=self.settings.max_snapshot_staleness_hours,
         ).predict(request)
 
     def health(self) -> dict[str, Any]:
+        from .operations import health
+
         providers = {
             "oracles_elixir": {"enabled": True, "capabilities": ["historical_games", "conditional_download"]},
             "polymarket": {"enabled": True, "capabilities": ["read_only_market", "shadow"]},
         }
+        deep = health(self.settings)
         return {
-            "status": "SUCCEEDED",
+            **deep,
             "domain": self.domain,
             "version": version("lol-predictor"),
             "details": {"providers": providers},

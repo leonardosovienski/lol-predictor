@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     project_root: Path = Path(".")
     config_path: Path = Path("config.yaml")
     max_snapshot_staleness_hours: Annotated[int, Field(gt=0)] = 192
+    min_free_disk_mb: Annotated[int, Field(ge=1)] = 100
+    health_check_connectivity: bool = False
+    health_connectivity_timeout_seconds: Annotated[float, Field(gt=0, le=60)] = 10
+    ops_runtime_root: Path = Path(".runtime/predictor-ops")
+    max_job_timeout_seconds: Annotated[int, Field(gt=0)] = 1800
     oracle_primary_url: HttpUrl = HttpUrl(
         "https://oracles-elixir-data.s3.us-west-2.amazonaws.com/2026_LoL_esports_match_data_from_OraclesElixir.csv"
     )

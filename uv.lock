@@ -231,8 +231,8 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "numpy", specifier = ">=2.3,<3" },
     { name = "pandas", specifier = ">=2.3,<3" },
-    { name = "predictor-core", url = "https://github.com/leonardosovienski/core-predictor/releases/download/v2.1.0/predictor_core-2.1.0-py3-none-any.whl" },
-    { name = "predictor-ops", url = "https://github.com/leonardosovienski/tools-predictor/releases/download/v2.0.1/predictor_ops-2.0.1-py3-none-any.whl" },
+    { name = "predictor-core", url = "https://github.com/leonardosovienski/core-predictor/releases/download/v2.2.0/predictor_core-2.2.0-py3-none-any.whl" },
+    { name = "predictor-ops", url = "https://github.com/leonardosovienski/tools-predictor/releases/download/v3.0.0/predictor_ops-3.0.0-py3-none-any.whl" },
     { name = "pydantic", specifier = ">=2.11,<3" },
     { name = "pydantic-settings", specifier = ">=2.10,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
@@ -383,10 +383,10 @@ wheels = [
 
 [[package]]
 name = "predictor-core"
-version = "2.1.0"
-source = { url = "https://github.com/leonardosovienski/core-predictor/releases/download/v2.1.0/predictor_core-2.1.0-py3-none-any.whl" }
+version = "2.2.0"
+source = { url = "https://github.com/leonardosovienski/core-predictor/releases/download/v2.2.0/predictor_core-2.2.0-py3-none-any.whl" }
 wheels = [
-    { url = "https://github.com/leonardosovienski/core-predictor/releases/download/v2.1.0/predictor_core-2.1.0-py3-none-any.whl", hash = "sha256:83de1d4415700dedaf387bc46dd9685e046de1fa47f37367bf2167462b09761b" },
+    { url = "https://github.com/leonardosovienski/core-predictor/releases/download/v2.2.0/predictor_core-2.2.0-py3-none-any.whl", hash = "sha256:fe95dece93a2c91436ffd60058cea1d9192022d2170abb7e8e8512ccb76f9fdd" },
 ]
 
 [package.metadata]
@@ -402,24 +402,24 @@ requires-dist = [
     { name = "pydantic", marker = "extra == 'dev'", specifier = ">=2.11,<3" },
     { name = "pydantic", marker = "extra == 'test'", specifier = ">=2.11,<3" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.403,<2" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4,<9" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.4,<9" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.2,<7" },
-    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.2,<7" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3,<10" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=9.0.3,<10" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.2,<8" },
+    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.2,<8" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12.7,<1" },
 ]
 provides-extras = ["dev", "http", "science", "scraping", "test"]
 
 [[package]]
 name = "predictor-ops"
-version = "2.0.1"
-source = { url = "https://github.com/leonardosovienski/tools-predictor/releases/download/v2.0.1/predictor_ops-2.0.1-py3-none-any.whl" }
+version = "3.0.0"
+source = { url = "https://github.com/leonardosovienski/tools-predictor/releases/download/v3.0.0/predictor_ops-3.0.0-py3-none-any.whl" }
 dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
 wheels = [
-    { url = "https://github.com/leonardosovienski/tools-predictor/releases/download/v2.0.1/predictor_ops-2.0.1-py3-none-any.whl", hash = "sha256:77ca2eb3f1090226dfef23b84d7fb2f9a61bd858c970d433d28303e637a8903e" },
+    { url = "https://github.com/leonardosovienski/tools-predictor/releases/download/v3.0.0/predictor_ops-3.0.0-py3-none-any.whl", hash = "sha256:9574d5fa4d17232a9d7dbd1aaff0131b65f341974508c5457b8d570bf41e8945" },
 ]
 
 [package.metadata]
@@ -438,7 +438,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.2" },
     { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.4" },
-    { name = "redis", marker = "extra == 'redis'", specifier = ">=6,<8" },
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=6,<9" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12" },
 ]
 provides-extras = ["dev", "otel", "redis"]

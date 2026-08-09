@@ -1,0 +1,24 @@
+{
+  "schema_version": "scientific-governance/1",
+  "charter_id": "lol-oracles-elixir-v1",
+  "source": "oracles-elixir",
+  "metrics": ["map-winner", "total-kills"],
+  "assets": ["professional-lol-maps"],
+  "cadence": "weekly",
+  "timestamp_semantics": {
+    "event_at_source": "Oracle CSV date field",
+    "published_at_source": "HTTP Last-Modified when available",
+    "ingested_at_source": "collector UTC clock"
+  },
+  "latency_sla": {"median_seconds": 604800, "p99_seconds": 691200},
+  "resource_budget": {"traffic_mb_month": 1000, "storage_gb_month": 10},
+  "owner": "lol-predictor maintainers",
+  "revision_policy": "append a new charter version; never rewrite a sealed freeze",
+  "initial_scientific_state": "COLLECTION_ONLY",
+  "collector_version": "2026.07.resilient.1",
+  "expected_schema_version": "oracle-csv/1",
+  "retention_policy": {"immutable_snapshots": "permanent", "failed_candidates": "forensic"},
+  "quality_thresholds": {"minimum_rows": 2, "maximum_staleness_hours": 192},
+  "created_at": "2026-08-09T00:00:00Z",
+  "rationale": "Acquire point-in-time professional LoL map results for the registered H1 Elo evaluation."
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": "lol-holdout-charter/1.0",
+  "period_started_at": "2026-08-09T00:00:00-03:00",
+  "scientific_state": "COLLECTION_ONLY",
+  "storage": "data/holdout/raw",
+  "immutability": "captures are content-addressed and never overwritten",
+  "training_eligible": false,
+  "allowed_use": "prospective evaluation after the declared window closes",
+  "prohibited_use": [
+    "model training",
+    "feature selection",
+    "hyperparameter tuning",
+    "threshold tuning"
+  ],
+  "collection_frequency_minutes": 30,
+  "identity_policy": "raw names and provider IDs are preserved; canonical resolution is deferred"
+}

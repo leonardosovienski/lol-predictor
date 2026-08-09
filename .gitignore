@@ -15,6 +15,12 @@
 /data/shadow/
 /data/market_gate.json
 /data/collection_only/
+/data/collection_archive/
+/data/quarantine/
+/data/holdout/
+/data/.idem_state/
+/data/freezes/
+/data/current_freeze.json
 /logs/operations/
 /data/lol.db*
 # trials.json + atestado são VERSIONADOS (denominador do DSR imortal)

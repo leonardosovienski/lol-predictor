@@ -17,7 +17,9 @@ ROOT = Path(os.environ.get("LOL_PROJECT_ROOT", Path(__file__).resolve().parent.p
 
 @lru_cache(maxsize=1)
 def load_config() -> dict:
-    with open(ROOT / "config.yaml", encoding="utf-8") as f:
+    configured = Path(os.environ.get("LOL_CONFIG_PATH", "config.yaml"))
+    path = configured if configured.is_absolute() else ROOT / configured
+    with path.open(encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
