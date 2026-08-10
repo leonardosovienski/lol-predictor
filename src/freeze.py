@@ -221,6 +221,10 @@ def publish_freeze(*, data_root: Path, project_root: Path, config_path: Path) ->
         "model_code_sha256": sha256_file(project_root / "src" / "model.py"),
         "backtest_code_sha256": sha256_file(project_root / "scripts" / "backtest_walkforward.py"),
         "canonical_teams_sha256": sha256_file(data_root / "canonical_teams.json"),
+        "collection_archive_sha256": sha256_file(data_root / "collection_archive" / "events.jsonl"),
+        "collection_run_sha256": canonical_hash(
+            json.loads((data_root / "collection_archive" / "latest_run.json").read_text(encoding="utf-8"))
+        ),
     }
     if backtest.get("processing") != expected_processing:
         raise FreezeError("backtest was produced by different code or configuration")
@@ -275,6 +279,10 @@ def publish_freeze(*, data_root: Path, project_root: Path, config_path: Path) ->
     frozen_canonical = freeze_root / "identities" / "canonical_teams.json"
     frozen_trials = freeze_root / "governance" / "trials.json"
     frozen_charter = freeze_root / "governance" / "data_acquisition_charter.json"
+    collection_archive = data_root / "collection_archive" / "events.jsonl"
+    collection_run = data_root / "collection_archive" / "latest_run.json"
+    frozen_collection_archive = freeze_root / "collection" / "events.jsonl"
+    frozen_collection_run = freeze_root / "collection" / "latest_run.json"
     for source, target_artifact in (
         (backtest_path, frozen_backtest),
         (config_path, frozen_config),
@@ -283,6 +291,8 @@ def publish_freeze(*, data_root: Path, project_root: Path, config_path: Path) ->
         (canonical_teams, frozen_canonical),
         (trials, frozen_trials),
         (charter, frozen_charter),
+        (collection_archive, frozen_collection_archive),
+        (collection_run, frozen_collection_run),
     ):
         _immutable_copy(source, target_artifact)
     snapshot = backtest["snapshot"]
@@ -328,6 +338,12 @@ def publish_freeze(*, data_root: Path, project_root: Path, config_path: Path) ->
         },
         "artifacts": frozen_artifacts,
         "snapshot": snapshot,
+        "collection_archive": {
+            "path": _relative(frozen_collection_archive, data_root),
+            "sha256": sha256_file(frozen_collection_archive),
+            "run_path": _relative(frozen_collection_run, data_root),
+            "run_sha256": sha256_file(frozen_collection_run),
+        },
         "configuration": {
             "path": _relative(frozen_config, data_root),
             "active_path": str(config_path),
@@ -417,6 +433,14 @@ def load_current_freeze(data_root: Path, project_root: Path | None = None) -> tu
     if sha256_file(backtest) != manifest["backtest_manifest"]["sha256"]:
         raise FreezeError("frozen backtest manifest hash mismatch")
     artifacts["backtest_manifest"] = backtest
+    collection_archive = _resolve(data_root, manifest["collection_archive"]["path"])
+    collection_run = _resolve(data_root, manifest["collection_archive"]["run_path"])
+    if sha256_file(collection_archive) != manifest["collection_archive"]["sha256"]:
+        raise FreezeError("frozen collection archive hash mismatch")
+    if sha256_file(collection_run) != manifest["collection_archive"]["run_sha256"]:
+        raise FreezeError("frozen collection run hash mismatch")
+    artifacts["collection_archive"] = collection_archive
+    artifacts["collection_run"] = collection_run
     for label, entry in manifest["identities"].items():
         if label == "combined_sha256":
             continue

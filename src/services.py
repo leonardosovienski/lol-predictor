@@ -9,6 +9,7 @@ from predictor_core.kernel.timeindex import parse_iso
 
 from .data.ingestion import ConditionalDownloader, SnapshotStore
 from .freeze import load_current_freeze
+from .identity import IdentityRegistry
 from .model import EloModel
 
 
@@ -40,11 +41,18 @@ class PredictionService:
         age_hours = (datetime.now(UTC) - parse_iso(metadata["retrieved_at"])).total_seconds() / 3600
         if age_hours < -(5 / 60) or age_hours > self.max_age_hours:
             raise ValueError(f"frozen snapshot is outside the freshness window ({age_hours:.1f}h)")
+        registry = IdentityRegistry(artifacts["identity_canonical_teams"])
+        team_a = registry.resolve(provider="request", name=request.team_a)
+        team_b = registry.resolve(provider="request", name=request.team_b)
+        if team_a.canonical_id == team_b.canonical_id:
+            raise ValueError("a team cannot play against itself")
         result = self.model_factory(ratings_file=artifacts["ratings"]).predict_match(
-            request.team_a, request.team_b, request.format
+            team_a.display_name, team_b.display_name, request.format
         )
         return {
             **result,
+            "canonical_team_a_id": team_a.canonical_id,
+            "canonical_team_b_id": team_b.canonical_id,
             "domain": "lol",
             "model_name": "elo-h1",
             "model_version": "h1-approved/1",

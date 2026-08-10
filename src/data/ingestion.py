@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -150,16 +151,18 @@ class SnapshotStore:
 
     def current_payload(self) -> Path | None:
         current = self.current()
-        if not current or not isinstance(current.get("snapshot"), str):
+        snapshot = None if not current else current.get("snapshot")
+        if not isinstance(snapshot, str):
             return None
-        payload = self.snapshots / current["snapshot"] / "payload.csv"
+        payload = self.snapshots / snapshot / "payload.csv"
         return payload if payload.is_file() else None
 
     def current_metadata(self) -> dict[str, object] | None:
         current = self.current()
-        if not current or not isinstance(current.get("snapshot"), str):
+        snapshot = None if not current else current.get("snapshot")
+        if not isinstance(snapshot, str):
             return None
-        metadata = self.snapshots / current["snapshot"] / "metadata.json"
+        metadata = self.snapshots / snapshot / "metadata.json"
         try:
             value = json.loads(metadata.read_text(encoding="utf-8"))
             return value if isinstance(value, dict) else None
@@ -213,8 +216,9 @@ class SnapshotStore:
     ) -> dict[str, object]:
         summary = validate_oracle_csv(source_file)
         previous = self.current_metadata()
-        if previous and isinstance(previous.get("temporal_range_end"), str):
-            if str(summary["temporal_range_end"]) < previous["temporal_range_end"]:
+        previous_end = None if not previous else previous.get("temporal_range_end")
+        if isinstance(previous_end, str):
+            if str(summary["temporal_range_end"]) < previous_end:
                 raise IngestionError("regressão temporal: candidato termina antes do snapshot vigente")
         digest = _sha256(source_file)
         now = _utc_now()
@@ -301,7 +305,7 @@ class ConditionalDownloader:
         store: SnapshotStore,
         *,
         policy: DownloadPolicy = DownloadPolicy(),
-        opener: Callable[..., object] = urlopen,
+        opener: Callable[..., Any] = urlopen,
         sleeper: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
         rng: Callable[[], float] = random.random,
@@ -332,10 +336,12 @@ class ConditionalDownloader:
         state = self._state()
         headers = {"User-Agent": self.policy.user_agent, "Accept": "text/csv,*/*;q=0.1"}
         if state.get("url") == url:
-            if isinstance(state.get("etag"), str):
-                headers["If-None-Match"] = state["etag"]
-            if isinstance(state.get("last_modified"), str):
-                headers["If-Modified-Since"] = state["last_modified"]
+            etag = state.get("etag")
+            last_modified = state.get("last_modified")
+            if isinstance(etag, str):
+                headers["If-None-Match"] = etag
+            if isinstance(last_modified, str):
+                headers["If-Modified-Since"] = last_modified
         started = self.clock()
         final_error = "sem tentativa"
         for attempt in range(1, self.policy.max_attempts + 1):

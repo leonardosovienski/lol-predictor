@@ -16,7 +16,7 @@ jobs:
       - run: uv run ruff check src
       - run: uv run ruff format --check src
       - run: uv run pyright
-      - run: uv run pytest --cov=src --cov-branch --cov-report=term-missing --cov-fail-under=0
+      - run: uv run pytest --cov=src --cov-branch --cov-report=term-missing --cov-fail-under=70
       - name: Homologated runtime branch coverage
         run: >-
           uv run pytest
@@ -35,6 +35,7 @@ jobs:
           cd /tmp
           /tmp/lol-wheel/bin/lol-predictor validate-env "$OLDPWD/.env.example"
           /tmp/lol-wheel/bin/lol-scheduler validate "$OLDPWD/jobs.json"
+          /tmp/lol-wheel/bin/python -c "import scripts.backtest_walkforward, scripts.settle_h4_signals"
   container:
     runs-on: ubuntu-latest
     steps:

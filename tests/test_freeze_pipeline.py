@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from src.data.ingestion import SnapshotStore
-from src.operations import backtest, publish_freeze
+from src.operations import backtest, publish_freeze, publish_snapshot
 from src.services import PredictionRequest, PredictionService
 from src.settings import Settings
 
@@ -52,6 +52,7 @@ def test_snapshot_backtest_freeze_and_serving_without_mocks(tmp_path: Path) -> N
         max_snapshot_staleness_hours=192,
     )
 
+    publish_snapshot(settings)
     backtest_result = backtest(settings)
     freeze_result = publish_freeze(settings)
     prediction = PredictionService(data_root / "ingestion", project_root=ROOT).predict(

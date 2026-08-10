@@ -129,6 +129,25 @@ def collect_holdout(settings: Settings, horizon_hours: int = 168) -> dict[str, A
     return result
 
 
+def _verified_collection_archive(data_root: Path, snapshot_hash: str) -> tuple[dict[str, Any], Path]:
+    report_path = data_root / "collection_archive" / "latest_run.json"
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        archive = Path(report["archive"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise ContractError("canonical collection archive is required before backtest") from exc
+    if not archive.is_absolute():
+        archive = (Path.cwd() / archive).resolve()
+    if (
+        report.get("status") != "SHADOW_VALID"
+        or report.get("snapshot_sha256") != snapshot_hash
+        or not archive.is_file()
+        or int(report.get("accepted", 0)) < 1
+    ):
+        raise ContractError("canonical collection archive is invalid, empty, quarantined, or stale")
+    return report, archive
+
+
 def backtest(settings: Settings, snapshot: Path | None = None) -> dict[str, Any]:
     root = settings.data_root / "ingestion"
     metadata = assert_fresh_snapshot(root, max_age_hours=settings.max_snapshot_staleness_hours)
@@ -138,6 +157,7 @@ def backtest(settings: Settings, snapshot: Path | None = None) -> dict[str, Any]
     digest = hashlib.sha256(payload.read_bytes()).hexdigest()
     if digest != metadata["sha256"]:
         raise ContractError("snapshot payload does not match current metadata")
+    archive_report, archive_path = _verified_collection_archive(settings.data_root, digest)
     config_path = (
         settings.config_path if settings.config_path.is_absolute() else settings.project_root / settings.config_path
     )
@@ -146,6 +166,8 @@ def backtest(settings: Settings, snapshot: Path | None = None) -> dict[str, Any]
         "model_code_sha256": sha256_file(settings.project_root / "src" / "model.py"),
         "backtest_code_sha256": sha256_file(settings.project_root / "scripts" / "backtest_walkforward.py"),
         "canonical_teams_sha256": sha256_file(settings.data_root / "canonical_teams.json"),
+        "collection_archive_sha256": sha256_file(archive_path),
+        "collection_run_sha256": canonical_hash(archive_report),
     }
     input_hash = canonical_hash({"snapshot_sha256": digest, **processing})
     outputs = [

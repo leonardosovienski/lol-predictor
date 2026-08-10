@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lol-predictor"
-version = "2.0.0"
+version = "2.1.0"
 description = "Fail-closed League of Legends prediction domain"
 requires-python = ">=3.13,<3.15"
 dependencies = [
@@ -28,7 +28,7 @@ predictor-core = { url = "https://github.com/leonardosovienski/core-predictor/re
 predictor-ops = { url = "https://github.com/leonardosovienski/tools-predictor/releases/download/v3.0.0/predictor_ops-3.0.0-py3-none-any.whl" }
 
 [tool.hatch.build.targets.wheel]
-packages = ["src", "lol_predictor_plugin"]
+packages = ["src", "lol_predictor_plugin", "scripts"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers"
@@ -43,7 +43,7 @@ select = ["F", "I"]
 
 [tool.pyright]
 pythonVersion = "3.13"
-include = ["src/settings.py", "src/errors.py", "src/repositories.py", "src/services.py", "src/plugin.py", "src/cli.py"]
+include = ["src"]
 typeCheckingMode = "basic"
 
 [tool.coverage.run]
@@ -51,5 +51,5 @@ branch = true
 source = ["src"]
 
 [tool.coverage.report]
-fail_under = 0
+fail_under = 70
 show_missing = true

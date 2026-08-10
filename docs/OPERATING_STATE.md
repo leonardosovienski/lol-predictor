@@ -74,6 +74,12 @@ append-only quarantine record and surface as an alert in health. This is the
 new principal collection contract; legacy CSV remains a compatibility input
 until the dual-write acceptance window closes.
 
+Backtest is fail-closed unless the latest core archive is non-empty, has no
+quarantined identities and matches the exact SHA-256 of the current CSV
+snapshot. The backtest manifest includes the archive and run hashes, and
+`publish-freeze` copies both into the immutable freeze. Consequently the legacy
+CSV can no longer bypass canonical identity resolution on a scientific run.
+
 The independent `lol-collect-holdout` job runs as `COLLECTION_ONLY`, archives
 content-addressed captures below `data/holdout/raw/`, and never calls snapshot,
 backtest or freeze publication. Its versioned charter prohibits any training,

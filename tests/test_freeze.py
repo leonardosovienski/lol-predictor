@@ -9,7 +9,7 @@ from predictor_core.contracts.scientific import DataAcquisitionCharter
 
 from src.data.ingestion import SnapshotStore
 from src.freeze import FreezeError, load_current_freeze
-from src.operations import backtest, health, publish_freeze
+from src.operations import backtest, health, publish_freeze, publish_snapshot
 from src.services import PredictionRequest, PredictionService
 from src.settings import Settings
 
@@ -55,6 +55,7 @@ def _prepared(tmp_path: Path, monkeypatch) -> Settings:
         return 0
 
     monkeypatch.setattr("scripts.backtest_walkforward.main", fake_main)
+    publish_snapshot(settings)
     backtest(settings)
     return settings
 
@@ -79,7 +80,13 @@ def test_publish_freeze_is_sealed_idempotent_and_served(tmp_path, monkeypatch):
         PredictionRequest("T1", "Gen.G", "bo3")
     )
     assert prediction["freeze_id"] == manifest["freeze_id"]
+    assert prediction["canonical_team_a_id"].startswith("lol-team-")
+    assert prediction["canonical_team_b_id"].startswith("lol-team-")
     assert prediction["input_provenance"]["ratings_hash"] == manifest["artifacts"]["ratings"]["sha256"]
+    with pytest.raises(ValueError, match="unknown team identity"):
+        PredictionService(settings.data_root / "ingestion", project_root=ROOT).predict(
+            PredictionRequest("T", "Gen.G", "bo3")
+        )
     assert health(settings)["status"] == "HEALTHY"
 
 

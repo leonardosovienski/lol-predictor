@@ -5,8 +5,10 @@ import json
 import shutil
 from pathlib import Path
 
+import pytest
+
 from src.data.ingestion import SnapshotStore
-from src.operations import backtest, health, publish_snapshot, settle
+from src.operations import ContractError, backtest, health, publish_snapshot, settle
 from src.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -117,6 +119,7 @@ def test_settlement_always_publishes_a_summary_and_is_idempotent(tmp_path):
 def test_backtest_uses_current_snapshot_hash_and_skips_second_run(tmp_path, monkeypatch):
     settings = _settings(tmp_path)
     _snapshot(settings)
+    publish_snapshot(settings)
     seen = []
 
     def fake_main(arguments):
@@ -131,6 +134,32 @@ def test_backtest_uses_current_snapshot_hash_and_skips_second_run(tmp_path, monk
     assert first["status"] == "SUCCEEDED" and second["status"] == "SKIPPED"
     assert len(seen) == 1
     assert Path(seen[0][1]).name == "payload.csv"
+
+
+def test_backtest_requires_matching_canonical_archive(tmp_path):
+    settings = _settings(tmp_path)
+    _snapshot(settings)
+    with pytest.raises(ContractError, match="canonical collection archive"):
+        backtest(settings)
+
+
+def test_unknown_identity_is_quarantined_once_and_blocks_backtest(tmp_path):
+    settings = _settings(tmp_path)
+    source = settings.data_root.parent / "unknown.csv"
+    source.write_text(
+        "gameid,league,teamname,date,result,position,side,teamkills,split,game,datacompleteness\n"
+        "g1,LCK,Unknown Future Team,2026-08-08T00:00:00Z,1,team,Blue,10,Summer,1,complete\n"
+        "g1,LCK,T1,2026-08-08T00:00:00Z,0,team,Red,8,Summer,1,complete\n",
+        encoding="utf-8",
+    )
+    SnapshotStore(settings.data_root / "ingestion").publish(source, source="fixture")
+    first = publish_snapshot(settings)
+    second = publish_snapshot(settings)
+    assert first["collection_shadow"]["status"] == "ALERT"
+    quarantine = Path(second["collection_shadow"]["quarantine"])
+    assert len(quarantine.read_text(encoding="utf-8").splitlines()) == 1
+    with pytest.raises(ContractError, match="quarantined"):
+        backtest(settings)
 
 
 def test_snapshot_database_contains_only_snapshot_games(tmp_path):
