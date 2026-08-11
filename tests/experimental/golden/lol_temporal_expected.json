@@ -1,0 +1,33 @@
+{
+  "input_hash": "b91a02d3a7aaefbb28ee8c10002c0182abb8011d373d3edf3a2457b1a2811d88",
+  "metric_rule": "round(2.0 * (probability_a - outcome_a) ** 2, 8)",
+  "observed": {
+    "score": "2-1",
+    "winner": "Synthetic Alpha"
+  },
+  "prediction": {
+    "favorite": "Synthetic Alpha",
+    "probability_a": 0.8546,
+    "probability_b": 0.1454
+  },
+  "record": {
+    "cutoff_at": "2026-09-01T10:00:00Z",
+    "event_start_at": "2026-09-01T10:00:00Z",
+    "matured_at": "2026-09-01T12:31:00Z",
+    "matures_at": "2026-09-01T12:30:00Z",
+    "metric_name": "series_brier_multiclass",
+    "metric_scale": "lol-native-two-outcome-sum-of-squared-errors",
+    "metric_value": 0.04228232,
+    "predicted_at": "2026-09-01T09:00:00Z",
+    "prediction_id": "e45fd9769bbf191b9dc6bcb4f0ab6bd40f186851a3e4637c92740f8a2f258af2",
+    "prediction_payload_hash": "b91a02d3a7aaefbb28ee8c10002c0182abb8011d373d3edf3a2457b1a2811d88",
+    "result_available_at": "2026-09-01T12:20:00Z",
+    "result_payload_hash": "0da47d40c0384d49aabcb3cbf0b3c06fce9324857625445f5d9e771b10f0aae8",
+    "schema_version": "p4-lol-temporal-experiment/1"
+  },
+  "seed": 23,
+  "tolerance": {
+    "absolute": 1e-12,
+    "relative": 1e-12
+  }
+}
