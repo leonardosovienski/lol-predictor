@@ -1,4 +1,5 @@
 import json
+import threading
 
 import pytest
 
@@ -7,6 +8,7 @@ from src.execution_polymarket import (
     ExecutionBlockedError,
     OrderStateUnknownError,
     cancel_order,
+    order_fingerprint,
     order_view,
     reconcile_order,
     submit_order,
@@ -45,6 +47,7 @@ def _write_approval(path, **overrides):
         "bet_fingerprint": bet_fingerprint(
             market="moneyline", selection="T1", prob_model=0.6, decimal_odds=2.0, bankroll=1000
         ),
+        "order_fingerprint": order_fingerprint(token_id="token-a", side="BUY", price=0.55, size=10.0),
     }
     payload.update(overrides)
     path.write_text(json.dumps(payload))
@@ -103,6 +106,22 @@ def test_blocked_when_approval_file_does_not_match(monkeypatch, tmp_path):
             REAL_BET,
             **_order_kwargs(),
             approval_path=tmp_path / "missing-approval.json",
+            client_factory=_never_called,
+            transmit=_never_called,
+        )
+
+
+def test_blocked_when_order_fingerprint_does_not_match_approval(monkeypatch, tmp_path):
+    """A aprovação amarra token_id/side/price/size — não só o bet abstrato.
+    Sem isto, uma aprovação válida pro bet autorizaria qualquer size/price
+    que o chamador passasse a submit_order."""
+    _go(monkeypatch)
+    approval = _write_approval(tmp_path / "approval.json")  # aprovado pra size=10.0
+    with pytest.raises(PermissionError, match="token_id/side/price/size"):
+        submit_order(
+            REAL_BET,
+            **_order_kwargs(size=999.0),
+            approval_path=approval,
             client_factory=_never_called,
             transmit=_never_called,
         )
@@ -234,6 +253,91 @@ def test_transport_failure_raises_state_unknown_and_never_retransmits(monkeypatc
     assert calls["transmit"] == 1
 
 
+def test_client_factory_failure_leaves_order_resumable_not_poisoned(monkeypatch, tmp_path):
+    """Uma ordem presa em CREATED (client_factory falhou antes de qualquer
+    chamada de rede pra exchange) tem que ser retomável — nunca virar um
+    bet_id morto que nem retransmite nem consegue ser reconciliado/cancelado
+    (ela nunca teve exchange_order_id pra começo de conversa)."""
+    _go(monkeypatch)
+    _confirm_live_trading(monkeypatch)
+    approval = _write_approval(tmp_path / "approval.json")
+    orders = tmp_path / "orders.jsonl"
+
+    def failing_factory():
+        raise ExecutionBlockedError("LOL_POLYMARKET_PRIVATE_KEY ausente (simulado)")
+
+    with pytest.raises(ExecutionBlockedError):
+        submit_order(
+            REAL_BET,
+            **_order_kwargs(),
+            approval_path=approval,
+            orders_path=orders,
+            client_factory=failing_factory,
+            transmit=_never_called,
+        )
+    stuck_id = json.loads(orders.read_text(encoding="utf-8").splitlines()[0])["local_order_id"]
+    assert order_view(stuck_id, orders_path=orders)["state"] == execution_polymarket.CREATED
+
+    calls = {"transmit": 0}
+
+    def fake_transmit(client, **kw):
+        calls["transmit"] += 1
+        return {"success": True, "orderID": "0xabc", "status": "live"}
+
+    resumed = submit_order(
+        REAL_BET,
+        **_order_kwargs(),
+        approval_path=approval,
+        orders_path=orders,
+        client_factory=lambda: object(),
+        transmit=fake_transmit,
+    )
+    assert resumed["local_order_id"] == stuck_id
+    assert resumed["state"] == execution_polymarket.ACCEPTED
+    assert calls["transmit"] == 1
+
+
+def test_concurrent_submit_order_for_same_bet_transmits_only_once(monkeypatch, tmp_path):
+    """Duas chamadas concorrentes de submit_order pro mesmo bet_id não podem
+    resultar em duas transmissões — o cheque de idempotência + a escrita do
+    local_order_id precisam ser atômicos entre threads."""
+    _go(monkeypatch)
+    _confirm_live_trading(monkeypatch)
+    approval = _write_approval(tmp_path / "approval.json")
+    orders = tmp_path / "orders.jsonl"
+    calls = {"transmit": 0}
+    lock = threading.Lock()
+    barrier = threading.Barrier(2)
+
+    def fake_transmit(client, **kw):
+        with lock:
+            calls["transmit"] += 1
+        return {"success": True, "orderID": "0xabc", "status": "live"}
+
+    def run(results):
+        barrier.wait()
+        results.append(
+            submit_order(
+                REAL_BET,
+                **_order_kwargs(),
+                approval_path=approval,
+                orders_path=orders,
+                client_factory=lambda: object(),
+                transmit=fake_transmit,
+            )
+        )
+
+    results: list[dict] = []
+    threads = [threading.Thread(target=run, args=(results,)) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert calls["transmit"] == 1
+    assert results[0]["local_order_id"] == results[1]["local_order_id"]
+
+
 # --- reconcile_order ---------------------------------------------------------
 
 
@@ -322,6 +426,26 @@ def test_reconcile_partial_fill_then_full_fill(monkeypatch, tmp_path):
     )
     assert full["state"] == execution_polymarket.RECONCILED
     assert full["size_matched"] == 10.0
+
+
+def test_reconcile_treats_full_size_matched_while_still_live_as_filled(monkeypatch, tmp_path):
+    """A CLOB às vezes reporta size_matched == pedido antes de o status virar
+    'matched'; isso tem que contar como FILLED (e então RECONCILED), não
+    ACCEPTED preso esperando uma reconciliação futura que não vai achar
+    nada novo."""
+    _go(monkeypatch)
+    _confirm_live_trading(monkeypatch)
+    orders = tmp_path / "orders.jsonl"
+    view = _submit_accepted(tmp_path, orders)  # size=10.0 (default de _order_kwargs)
+
+    result = reconcile_order(
+        view["local_order_id"],
+        orders_path=orders,
+        client_factory=lambda: object(),
+        get_order=lambda client, order_id: {"status": "live", "size_matched": "10.0"},
+    )
+    assert result["state"] == execution_polymarket.RECONCILED
+    assert result["size_matched"] == 10.0
 
 
 def test_reconcile_unrecognized_status_stays_unknown(monkeypatch, tmp_path):

@@ -8,7 +8,13 @@ from src.model import EloModel, series_probs
 
 
 @pytest.fixture
-def model(tmp_path):
+def model(tmp_path, monkeypatch):
+    # ROOT isolado (mesmo padrão de test_kills_uses_published_league_
+    # calibration abaixo): sem isto, _kills_calibration lê o
+    # data/calibration.json REAL do checkout, e testes que assumem o
+    # baseline placeholder do config (28.0) quebram numa máquina que já
+    # rodou a ingestão de verdade.
+    monkeypatch.setattr(model_module, "ROOT", tmp_path)
     return EloModel(ratings_file=tmp_path / "ratings.json")
 
 
