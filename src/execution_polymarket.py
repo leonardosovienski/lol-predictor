@@ -64,7 +64,7 @@ def build_client(*, chain_id: int = 137) -> _ClobClient:
         raise ExecutionBlockedError("LOL_POLYMARKET_FUNDER ausente; obrigatório para signature_type != 0")
 
     try:
-        from py_clob_client.client import ClobClient
+        from py_clob_client.client import ClobClient  # pyright: ignore[reportMissingImports]
     except ImportError as exc:
         raise ExecutionBlockedError("py-clob-client não instalado; use `pip install lol-predictor[execution]`") from exc
 
@@ -78,8 +78,8 @@ def build_client(*, chain_id: int = 137) -> _ClobClient:
 
 
 def _live_transmit(client: _ClobClient, *, token_id: str, side: str, price: float, size: float) -> dict:
-    from py_clob_client.clob_types import OrderArgs, OrderType
-    from py_clob_client.order_builder.constants import BUY, SELL
+    from py_clob_client.clob_types import OrderArgs, OrderType  # pyright: ignore[reportMissingImports]
+    from py_clob_client.order_builder.constants import BUY, SELL  # pyright: ignore[reportMissingImports]
 
     order_args = OrderArgs(
         token_id=token_id, price=round(price, 4), size=round(size, 2), side=BUY if side == "BUY" else SELL
