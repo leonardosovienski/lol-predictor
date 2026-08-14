@@ -2,8 +2,8 @@ from src.redaction import collect_sensitive_values, safe_redact_text
 
 
 def test_collects_only_conventionally_sensitive_keys():
-    environ = {"LOL_API_KEY": "abcdefgh12345678", "LOL_LOG_LEVEL": "INFO", "PATH": "/usr/bin"}
-    assert collect_sensitive_values(environ) == {"abcdefgh12345678"}
+    environ = {"LOL_API_KEY": "not-a-real-secret-test-fixture", "LOL_LOG_LEVEL": "INFO", "PATH": "/usr/bin"}
+    assert collect_sensitive_values(environ) == {"not-a-real-secret-test-fixture"}
 
 
 def test_ignores_empty_values():
@@ -15,8 +15,8 @@ def test_short_values_are_still_collected():
     Collateral-redaction safety is safe_redact_text's job (boundary matching
     below), not collect_sensitive_values' — dropping short values here would
     silently stop protecting real short credentials."""
-    environ = {"SOME_AUTH_DIGIT": "4", "OTHER_TOKEN": "3", "REAL_API_KEY": "abcdefgh12345678"}
-    assert collect_sensitive_values(environ) == {"4", "3", "abcdefgh12345678"}
+    environ = {"SOME_AUTH_DIGIT": "4", "OTHER_TOKEN": "3", "REAL_API_KEY": "not-a-real-secret-test-fixture"}
+    assert collect_sensitive_values(environ) == {"4", "3", "not-a-real-secret-test-fixture"}
 
 
 def test_safe_redact_text_replaces_longest_first():
@@ -26,7 +26,7 @@ def test_safe_redact_text_replaces_longest_first():
 
 
 def test_safe_redact_text_never_touches_unrelated_digits():
-    redacted = safe_redact_text("2026-08-14: 1576 games, hash e77fade6", ["abcdefgh12345678"])
+    redacted = safe_redact_text("2026-08-14: 1576 games, hash e77fade6", ["not-a-real-secret-test-fixture"])
     assert redacted == "2026-08-14: 1576 games, hash e77fade6"
 
 
