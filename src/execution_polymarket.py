@@ -81,7 +81,9 @@ def _live_transmit(client: _ClobClient, *, token_id: str, side: str, price: floa
     from py_clob_client.clob_types import OrderArgs, OrderType
     from py_clob_client.order_builder.constants import BUY, SELL
 
-    order_args = OrderArgs(token_id=token_id, price=round(price, 4), size=round(size, 2), side=BUY if side == "BUY" else SELL)
+    order_args = OrderArgs(
+        token_id=token_id, price=round(price, 4), size=round(size, 2), side=BUY if side == "BUY" else SELL
+    )
     signed = client.create_order(order_args)
     response = client.post_order(signed, OrderType.GTC)
     return response if isinstance(response, dict) else {"raw": str(response)}
