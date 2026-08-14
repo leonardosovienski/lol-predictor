@@ -13,6 +13,12 @@ dependencies = [
   "scipy>=1.16,<2", "predictor-core>=2.2,<3", "predictor-ops>=3,<4",
 ]
 
+[project.optional-dependencies]
+# Cliente de transmissão real de ordem (src/execution_polymarket.py). Extra
+# separado de propósito: a instalação base nunca precisa da stack web3, e
+# `go_gate()` continua NO-GO por construção com ou sem este extra instalado.
+execution = ["py-clob-client>=0.34,<1"]
+
 [project.scripts]
 lol-predictor = "src.cli:main"
 lol-scheduler = "src.cli:scheduler_main"

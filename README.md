@@ -172,3 +172,13 @@ python scripts/backtest_market_retrospective.py `
 Resultado em 177 partidas/28 competições: Brier Elo 0,4320 contra mercado
 0,4023; ROI shadow +10,57% em 116 sinais. Os dois IC95% cruzam zero, portanto
 o veredito retrospectivo é `INCONCLUSIVO` e a H4 prospectiva continua intacta.
+
+**Execução real de ordem (2026-08-14):** `src/execution_polymarket.py`
+(extra opcional `lol-predictor[execution]`) é a canalização de transmissão
+para o Polymarket CLOB — construída com antecedência, mas **estruturalmente
+inerte**: ela reavalia `go_gate()` (permanentemente `NO-GO`, ver acima) e a
+aprovação manual por conta própria antes de qualquer transmissão, e não
+existe hoje nenhum caminho de código que produza um `"GO"`. Ver
+[`docs/EXECUTION_POLYMARKET.md`](docs/EXECUTION_POLYMARKET.md) para as
+camadas de bloqueio e o que precisaria acontecer, de verdade, para reabrir
+dinheiro real.
