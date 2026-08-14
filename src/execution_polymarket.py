@@ -74,13 +74,14 @@ from .manual_approval import bet_fingerprint, require_manual_approval
 
 _LIVE_TRADING_CONFIRM_ENV = "LOL_POLYMARKET_LIVE_TRADING_CONFIRMED"
 
-# Serializa a seção crítica de submit_order (checar se já existe ordem pra
-# este bet_id + reivindicar um local_order_id) contra outra thread deste
-# processo (_ORDERS_LOCK) e contra outro processo (_file_lock, mesmo padrão
-# de model.py/_RATINGS_LOCK+_file_lock). Sem isto, duas chamadas
-# concorrentes pro mesmo bet_id podiam ambas passar pelo cheque de
-# idempotência antes de qualquer uma escrever sua linha, e transmitir a
-# MESMA aposta aprovada duas vezes.
+# Serializa toda a submissão de uma ordem real (checar idempotência,
+# montar cliente, transmitir) contra outra thread deste processo
+# (_ORDERS_LOCK) e contra outro processo (_file_lock, mesmo padrão de
+# model.py/_RATINGS_LOCK+_file_lock). Travar só o cheque de idempotência e
+# liberar antes de transmitir NÃO basta: duas chamadas concorrentes podiam
+# ambas encontrar a mesma ordem retomável (presa em CREATED) depois de
+# liberado o lock, e ambas transmitirem — reproduzido ao vivo por um teste
+# de concorrência. O lock cobre a chamada inteira de propósito.
 _ORDERS_LOCK = threading.Lock()
 
 
@@ -399,9 +400,20 @@ def submit_order(
             **fields,
         }
 
-    # Seção crítica: reivindicar (ou retomar) o local_order_id deste bet_id
-    # é a única parte que precisa de exclusão mútua — o resto (montar
-    # cliente, transmitir) é I/O de rede e não deve segurar o lock.
+    # A seção inteira — reivindicar/retomar o local_order_id, montar o
+    # cliente e transmitir — precisa de exclusão mútua, não só a
+    # reivindicação: uma versão anterior desta função só travava o passo de
+    # "existe ordem pra este bet_id?" e liberava o lock antes de transmitir.
+    # Isso reabria a mesma corrida que o lock existe pra fechar: duas
+    # chamadas concorrentes podiam ambas encontrar a MESMA ordem presa em
+    # CREATED (retomável), ambas decidirem retomá-la, e ambas transmitirem —
+    # reproduzido ao vivo por um teste de concorrência antes desta correção.
+    # O custo é serializar toda submissão de ordem real neste processo (e
+    # entre processos, via _file_lock) mesmo entre bets diferentes — aceitável
+    # aqui: isto é uma ação rara e deliberada por bet aprovado manualmente,
+    # nunca um caminho de alta frequência. reconcile_order/cancel_order
+    # continuam livres deste lock — não criam risco novo, só investigam ou
+    # reduzem o que já existe.
     #
     # Uma ordem presa em CREATED (client_factory ou qualquer coisa antes de
     # SUBMITTED falhou numa tentativa anterior) é seguramente retomável: nós
@@ -431,37 +443,43 @@ def submit_order(
                 path=orders_path,
             )
 
-    client = client_factory()
+        client = client_factory()
 
-    _audit(_row(local_order_id, "order_submitted", SUBMITTED), path=orders_path)
+        _audit(_row(local_order_id, "order_submitted", SUBMITTED), path=orders_path)
 
-    try:
-        response = transmit(client, token_id=token_id, side=side, price=price, size=size)
-    except Exception as exc:
+        try:
+            response = transmit(client, token_id=token_id, side=side, price=price, size=size)
+        except Exception as exc:
+            _audit(
+                _row(
+                    local_order_id,
+                    "order_result",
+                    UNKNOWN,
+                    exchange_order_id=None,
+                    error=f"{type(exc).__name__}: {exc}",
+                ),
+                path=orders_path,
+            )
+            raise OrderStateUnknownError(
+                f"transmissão falhou sem confirmação (local_order_id={local_order_id}); "
+                "não sabemos se a exchange recebeu a ordem — reconcilie antes de tentar de novo"
+            ) from exc
+
+        state, exchange_order_id, size_matched = _interpret_post_order_response(response, size)
         _audit(
-            _row(local_order_id, "order_result", UNKNOWN, exchange_order_id=None, error=f"{type(exc).__name__}: {exc}"),
+            _row(
+                local_order_id,
+                "order_result",
+                state,
+                exchange_order_id=exchange_order_id,
+                size_matched=size_matched,
+                clob_response=response,
+            ),
             path=orders_path,
         )
-        raise OrderStateUnknownError(
-            f"transmissão falhou sem confirmação (local_order_id={local_order_id}); "
-            "não sabemos se a exchange recebeu a ordem — reconcilie antes de tentar de novo"
-        ) from exc
-
-    state, exchange_order_id, size_matched = _interpret_post_order_response(response, size)
-    _audit(
-        _row(
-            local_order_id,
-            "order_result",
-            state,
-            exchange_order_id=exchange_order_id,
-            size_matched=size_matched,
-            clob_response=response,
-        ),
-        path=orders_path,
-    )
-    final_view = order_view(local_order_id, orders_path=orders_path)
-    assert final_view is not None  # acabamos de gravar uma linha pra este id
-    return final_view
+        final_view = order_view(local_order_id, orders_path=orders_path)
+        assert final_view is not None  # acabamos de gravar uma linha pra este id
+        return final_view
 
 
 def reconcile_order(
