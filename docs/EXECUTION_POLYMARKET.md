@@ -37,6 +37,49 @@ Se qualquer camada falhar, `submit_order` levanta `ExecutionBlockedError`
 (ou `PermissionError`, vindo da aprovação manual) e não transmite nada,
 parcial ou totalmente.
 
+## Máquina de estados da ordem
+
+Cada ordem local tem um `local_order_id` (gerado em `submit_order`,
+independente do `bet_id`) e um histórico evento-sourced em
+`data/orders.jsonl` — nenhuma linha é editada, só apendada, igual
+`bets.jsonl`. `order_view(local_order_id)` reconstrói o estado atual
+dobrando esse histórico.
+
+```
+CREATED -> SUBMITTED -> {ACCEPTED, FILLED, REJECTED, UNKNOWN}
+ACCEPTED -> {PARTIALLY_FILLED, FILLED, CANCELLED, UNKNOWN}   (via reconcile_order)
+PARTIALLY_FILLED -> {FILLED, CANCELLED, UNKNOWN}              (via reconcile_order)
+{FILLED, CANCELLED, REJECTED} -> RECONCILED                   (confirmado contra a exchange)
+```
+
+`UNKNOWN` nunca é reenviado automaticamente. Se `transmit()` levanta uma
+exceção (timeout, queda de rede — não sabemos se a exchange recebeu a
+ordem), `submit_order` grava `UNKNOWN` e levanta `OrderStateUnknownError`;
+uma segunda chamada com o mesmo `bet["id"]` devolve essa mesma ordem em
+`UNKNOWN` sem retransmitir — só `reconcile_order` pode avançar dali.
+
+`reconcile_order(local_order_id)` consulta `client.get_order()` e move o
+estado adiante (ou confirma `RECONCILED`); é no-op idempotente se a ordem já
+estiver num estado terminal (`FILLED`/`CANCELLED`/`REJECTED`/`RECONCILED`).
+Se a ordem nunca recebeu um `exchange_order_id` (falhou antes da exchange
+confirmar recebimento), reconciliação automática não é segura — levanta
+`OrderStateUnknownError` pedindo verificação manual via `get_orders`/`get_trades`.
+
+`cancel_order(local_order_id)` chama `client.cancel()`. **Ao contrário de
+`submit_order`, não exige `go_gate`, aprovação manual nem
+`LOL_POLYMARKET_LIVE_TRADING_CONFIRMED`** — cancelar só reduz risco que já
+existe na exchange, nunca cria risco novo, então não pode ficar refém dos
+mesmos interruptores que autorizam uma ordem nova. É o kill switch por
+ordem individual (o `H4_COHORT_CONTRACT.md` já pede um "kill switch
+central" mais amplo — isto cobre só o nível de ordem).
+
+Os mapeamentos de status cru da API (`_interpret_post_order_response`,
+`_interpret_order_status` — ex. `"live"`/`"matched"`/`"unmatched"`) são
+melhor esforço a partir da documentação pública do `py-clob-client`;
+qualquer status não reconhecido cai em `UNKNOWN` por construção. **Isso
+precisa ser validado contra respostas reais da API antes de qualquer uso
+com dinheiro de verdade** — não foi testado contra o serviço ao vivo.
+
 ## Credenciais
 
 Lidas só de variáveis de ambiente, **fora** de `Settings`/pydantic (para
