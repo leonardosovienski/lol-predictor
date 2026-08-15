@@ -1,5 +1,99 @@
 # HANDOFF.md — lol-predictor
 
+> ## 🧾 Sessão registrada (2026-08-14/15): execução real inerte construída, pipeline local recuperado, uma sessão paralela detectada
+>
+> **Contexto do pedido**: o operador pediu pra "tirar tudo que impede colocar
+> dinheiro real". A resposta desta sessão foi mapear as 15 camadas de gate
+> existentes (`go_gate()` hardcoded NO-GO, `h4_gate.py` pré-registrado,
+> `data/h4_v2_closure.json` NO_GO, aprovação manual por ordem — ver
+> `docs/H4_COHORT_CONTRACT.md`) e **recusar** alterar qualquer critério
+> estatístico ou o próprio `go_gate()` — o backtest retrospectivo H4-R segue
+> `INCONCLUSIVO` (os dois IC95%, Brier e ROI, cruzam zero) e não há amostra
+> prospectiva real ainda. Nada nessa recusa mudou nesta sessão.
+>
+> **O que foi construído (PRs #10, #11, #12, todas em `main`)**:
+> `src/execution_polymarket.py` — cliente de transmissão real pro Polymarket
+> CLOB, extra opcional `lol-predictor[execution]`, estruturalmente inerte.
+> Máquina de estados completa (`CREATED → SUBMITTED → {ACCEPTED, FILLED,
+> REJECTED, UNKNOWN} → ... → RECONCILED`), `reconcile_order`/`cancel_order`
+> deliberadamente livres do gate (kill switch não pode depender do mesmo
+> interruptor que autoriza risco), `OrderStateUnknownError` pra nunca
+> reenviar às cegas depois de falha de rede sem confirmação. Documentação
+> completa em `docs/EXECUTION_POLYMARKET.md`.
+>
+> **Bugs reais encontrados e corrigidos nesse trabalho** (não são
+> hipotéticos — todos com teste de regressão):
+> 1. `submit_order` "envenenava" o `bet_id` se `client_factory()` falhasse
+>    depois da linha `CREATED` ser gravada (retry nunca mais tentava
+>    transmitir). Corrigido: ordem presa em `CREATED` é retomável.
+> 2. A retomada acima reabriu uma corrida — duas chamadas concorrentes
+>    podiam achar a MESMA ordem `CREATED` retomável e as duas transmitirem.
+>    O CI (job Python 3.14) pegou isso ao vivo
+>    (`assert 2 == 1` em `test_concurrent_submit_order_for_same_bet...`);
+>    corrigido segurando o lock (`_ORDERS_LOCK` + `_file_lock`) durante a
+>    submissão inteira, não só a reivindicação. Verificado com 40 execuções
+>    seguidas do teste.
+> 3. O fingerprint de aprovação manual (`bet_fingerprint`) nunca cobria
+>    `token_id`/`price`/`size` — uma aprovação válida pra um tamanho/preço
+>    autorizava silenciosamente qualquer outro. Adicionado
+>    `order_fingerprint` específico da execução.
+> 4. `_interpret_order_status` classificava ordem totalmente preenchida como
+>    `ACCEPTED` em vez de `FILLED` quando o status cru ainda dizia
+>    "live"/"delayed" com `size_matched` já no total.
+> 5. `safe_redact_text` (`src/redaction.py`) fazia substituição de substring
+>    crua: um "segredo" de 1-2 caracteres redigia todo dígito coincidente em
+>    log não relacionado (reproduzido via
+>    `scripts/atualiza_semanal_payload.py`, virando `h[REDACTED]_results`).
+>    Reescrito pra casar só em fronteira de token.
+> 6. Falso positivo do `gitleaks` num fixture de teste (string parecendo API
+>    key) — resolvido com `.gitleaksignore` apontando o fingerprint exato
+>    (editar a string numa string commit não remove o achado do commit
+>    anterior no histórico; reescrever histórico não compensava pra um PR
+>    ainda não mergeado).
+>
+> **⚠️ Achado operacional importante**: o commit `b87b7e79` ("Fix 4 real bugs
+> found reviewing execution_polymarket, plus a redaction bug", bugs 1-4 e a
+> primeira versão do 5 acima) foi autorado por `Claude <noreply@anthropic.com>`
+> mas **não veio desta sessão** — apareceu direto na branch
+> `claude/entender-3-projetos-6bbxa4` e virou a PR #12 sem esta sessão ter
+> criado a PR. A mensagem do commit descreve ter rodado a suíte completa com
+> `predictor-core`/`predictor-ops` de fato instalados e `data/ratings.json`
+> real bootstrapado — exatamente o ambiente que esta sessão só tinha por
+> procuração, orientando comandos no PowerShell do operador. Isso indica uma
+> **sessão Claude Code paralela rodando local na máquina do operador**,
+> mexendo na mesma branch ao mesmo tempo (consistente com as pastas
+> `Documents\Codex\...` encontradas antes — parece que o operador roda mais
+> de uma ferramenta/sessão de IA nos mesmos repos simultaneamente). Isso
+> funcionou aqui porque os commits eram complementares, mas é um risco real
+> de conflito/trabalho contraditório se continuar. Vale decidir
+> deliberadamente se isso é intencional.
+>
+> **Recuperação da máquina local (achado à parte, não sobre código)**: a
+> tarefa agendada `lol-market-shadow` estava falhando a cada 30 min com
+> `ERROR_DIRECTORY` (0x8007010B) porque `C:\Claude-projetos\Claude\lol-predictor`
+> — o `WorkingDirectory` configurado na tarefa — não existia mais na máquina.
+> **Isso significa que a coleta prospectiva do H4 não rodou de verdade por
+> um período indeterminado**; os "dias corridos" do `market_shadow_status.py`
+> são só relógio de calendário desde `data/trials.json`, não coleta real.
+> Recuperado nesta sessão: reclonado o repo no caminho esperado, dependências
+> (`predictor-core`/`predictor-ops` só via wheel pinada do GitHub Release,
+> nunca do PyPI — risco de dependency confusion) instaladas no interpretador
+> exato que a tarefa usa (`AppData\Local\Python\pythoncore-3.14-64`, fora de
+> qualquer `.venv`/`uv`), e `data/ratings.json`/`data/lol.db` bootstrapados
+> rodando `scripts/atualiza_semanal_payload.py` apontado pros CSVs já
+> commitados em `data/manual_upload/`. A tarefa deveria estar coletando de
+> verdade a partir de 2026-08-14 ~09:20 UTC em diante — vale confirmar com
+> `market_shadow_status.py` numa sessão futura.
+>
+> **Pendências explícitas pra próxima sessão**: (1) decidir o que fazer com
+> a sessão paralela — coordenar ou consolidar; (2) confirmar que
+> `lol-market-shadow` seguiu rodando sem erro desde a recuperação; (3) o
+> "incidente de segurança do cripto" citado num documento de diagnóstico de
+> portfólio colado nesta sessão ficou deliberadamente **não investigado** —
+> o operador pediu pra ignorar cripto por agora; (4) os mapeamentos de
+> status cru da API em `_interpret_post_order_response`/`_interpret_order_status`
+> continuam melhor-esforço, nunca validados contra a API real da Polymarket.
+
 > ## 🔄 CORREÇÃO — banner "ESTADO FINAL" abaixo ficou desatualizado no mesmo dia (2026-08-01)
 >
 > O banner "ESTADO FINAL — PRODUCTION_READY_COLLECTION_ONLY" logo abaixo
