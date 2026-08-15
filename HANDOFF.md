@@ -2,6 +2,10 @@
 
 > ## 🧾 Sessão registrada (2026-08-14/15): execução real inerte construída, pipeline local recuperado, uma sessão paralela detectada
 >
+> Relato completo, passo a passo, com todos os comandos e saídas:
+> [`docs/SESSION_2026-08-14_EXECUCAO_REAL.md`](docs/SESSION_2026-08-14_EXECUCAO_REAL.md).
+> Este resumo abaixo é a versão condensada.
+>
 > **Contexto do pedido**: o operador pediu pra "tirar tudo que impede colocar
 > dinheiro real". A resposta desta sessão foi mapear as 15 camadas de gate
 > existentes (`go_gate()` hardcoded NO-GO, `h4_gate.py` pré-registrado,
