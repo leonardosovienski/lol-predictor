@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+import src.model as model_module
 from src import predict
 
 PARES = [("T1", "Gen.G"), ("Bilibili Gaming", "G2 Esports"),
@@ -16,6 +17,14 @@ def _isolado(tmp_path, monkeypatch):
     monkeypatch.setenv("PREDICTOR_EVENTS_PATH", str(tmp_path / "events.jsonl"))
     # Unit tests here exercise Elo serving; freshness is covered independently.
     monkeypatch.setattr(predict, "assert_fresh_snapshot", lambda *_args, **_kwargs: {})
+    # Redireciona ROOT (via model_module, mesmo padrão de
+    # test_kills_uses_published_league_calibration em test_model.py) pra um
+    # diretório sem data/ratings.json nem data/calibration.json: estes
+    # testes têm que passar igual num checkout limpo (como o CI roda) e num
+    # checkout com dado real vivido/calibrado (como uma máquina de
+    # desenvolvimento que já rodou a ingestão) — nunca depender de qual dos
+    # dois é o caso.
+    monkeypatch.setattr(model_module, "ROOT", tmp_path)
     yield
 
 
@@ -44,8 +53,12 @@ def test_cli_json_valido(capsys):
 
 
 def test_cli_market_kills_com_linha(capsys):
+    # --kills-league é exigido sempre que data/calibration.json existir (gate
+    # deliberado, ver test_kills_uses_published_league_calibration em
+    # test_model.py) — passar explicitamente evita que este teste dependa de
+    # o arquivo, gitignored e específico de cada máquina, existir ou não.
     rc = predict.main(["T1", "Gen.G", "--market", "kills",
-                       "--kills-line", "26.5", "--json"])
+                       "--kills-line", "26.5", "--kills-league", "LCK", "--json"])
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
     assert out["market"] == "kills"

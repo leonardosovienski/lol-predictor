@@ -58,9 +58,12 @@ contra respostas reais da API (ou de um ambiente de teste da Polymarket).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import threading
 import uuid
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -70,6 +73,46 @@ from .config import ROOT
 from .manual_approval import bet_fingerprint, require_manual_approval
 
 _LIVE_TRADING_CONFIRM_ENV = "LOL_POLYMARKET_LIVE_TRADING_CONFIRMED"
+
+# Serializa toda a submissão de uma ordem real (checar idempotência,
+# montar cliente, transmitir) contra outra thread deste processo
+# (_ORDERS_LOCK) e contra outro processo (_file_lock, mesmo padrão de
+# model.py/_RATINGS_LOCK+_file_lock). Travar só o cheque de idempotência e
+# liberar antes de transmitir NÃO basta: duas chamadas concorrentes podiam
+# ambas encontrar a mesma ordem retomável (presa em CREATED) depois de
+# liberado o lock, e ambas transmitirem — reproduzido ao vivo por um teste
+# de concorrência. O lock cobre a chamada inteira de propósito.
+_ORDERS_LOCK = threading.Lock()
+
+
+@contextmanager
+def _file_lock(path: Path):
+    """Serializa writers locais também entre processos (Windows/POSIX)."""
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "a+b") as lock:
+        lock.seek(0)
+        if lock.tell() == 0:
+            lock.write(b"0")
+            lock.flush()
+        lock.seek(0)
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            lock.seek(0)
+            if os.name == "nt":
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
 
 CREATED = "CREATED"
 SUBMITTED = "SUBMITTED"
@@ -208,6 +251,27 @@ def _existing_order_for_bet(bet_id: str, *, orders_path: str | Path | None = Non
     return None
 
 
+def order_fingerprint(*, token_id: str, side: str, price: float, size: float) -> str:
+    """Amarra a aprovação manual a token_id/side/price/size exatos da ordem.
+
+    `bet_fingerprint` (manual_approval.py, compartilhado com betting.py) só
+    cobre seleção/odds/probabilidade/banca — nunca conheceu token_id/price/
+    size, que são os campos que de fato determinam o que é transmitido pra
+    exchange. Sem isto, uma aprovação válida pra um bet aprovado autorizaria
+    silenciosamente qualquer price/size passado a `submit_order`."""
+    payload = {"token_id": token_id, "side": side, "price": round(float(price), 8), "size": round(float(size), 8)}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _require_order_fingerprint(approval_path: str | Path | None, *, expected: str) -> None:
+    try:
+        approval_record = json.loads(Path(approval_path).read_text(encoding="utf-8"))  # type: ignore[arg-type]
+    except (OSError, TypeError, ValueError) as exc:
+        raise PermissionError("arquivo de aprovação manual inválido") from exc
+    if approval_record.get("order_fingerprint") != expected:
+        raise PermissionError("aprovação manual não amarra token_id/side/price/size desta ordem")
+
+
 def _interpret_post_order_response(response: Any, requested_size: float) -> tuple[str, str | None, float | None]:
     """Melhor esforço pra normalizar a resposta de `client.post_order`.
 
@@ -247,6 +311,12 @@ def _interpret_order_status(response: Any, requested_size: float) -> tuple[str, 
     if raw_status == "matched":
         return FILLED, size_matched if size_matched is not None else requested_size
     if raw_status in ("live", "delayed"):
+        if size_matched is not None and requested_size and size_matched >= requested_size:
+            # A CLOB às vezes reporta o preenchimento antes de virar
+            # "matched"; um size_matched que já bate o pedido é FILLED de
+            # fato, não ACCEPTED — senão a ordem fica presa esperando uma
+            # reconciliação futura que nunca vai "achar" nada novo.
+            return FILLED, size_matched
         if size_matched and requested_size and 0 < size_matched < requested_size:
             return PARTIALLY_FILLED, size_matched
         return ACCEPTED, size_matched
@@ -305,19 +375,20 @@ def submit_order(
             bankroll=bet["bankroll"],
         ),
     )
+    # bet_fingerprint amarra seleção/odds/probabilidade/banca; nunca soube
+    # de token_id/price/size — sem este segundo cheque, uma aprovação válida
+    # pro bet autorizaria silenciosamente qualquer ordem passada aqui.
+    _require_order_fingerprint(
+        approval_path, expected=order_fingerprint(token_id=token_id, side=side, price=price, size=size)
+    )
 
     if os.environ.get(_LIVE_TRADING_CONFIRM_ENV, "").strip().lower() != "true":
         raise ExecutionBlockedError(f"defina {_LIVE_TRADING_CONFIRM_ENV}=true para autorizar a transmissão real")
 
-    if existing := _existing_order_for_bet(bet["id"], orders_path=orders_path):
-        return existing
-
-    local_order_id = str(uuid.uuid4())
-
     def _now() -> str:
         return datetime.now(UTC).isoformat(timespec="seconds")
 
-    def _row(event: str, state: str, **fields: Any) -> dict:
+    def _row(local_order_id: str, event: str, state: str, **fields: Any) -> dict:
         return {
             "id": str(uuid.uuid4()),
             "event": event,
@@ -329,49 +400,86 @@ def submit_order(
             **fields,
         }
 
-    _audit(
-        _row(
-            "order_created",
-            CREATED,
-            token_id=token_id,
-            side=side,
-            price=price,
-            size=size,
-            approval_id=approval["approval_id"],
-        ),
-        path=orders_path,
-    )
+    # A seção inteira — reivindicar/retomar o local_order_id, montar o
+    # cliente e transmitir — precisa de exclusão mútua, não só a
+    # reivindicação: uma versão anterior desta função só travava o passo de
+    # "existe ordem pra este bet_id?" e liberava o lock antes de transmitir.
+    # Isso reabria a mesma corrida que o lock existe pra fechar: duas
+    # chamadas concorrentes podiam ambas encontrar a MESMA ordem presa em
+    # CREATED (retomável), ambas decidirem retomá-la, e ambas transmitirem —
+    # reproduzido ao vivo por um teste de concorrência antes desta correção.
+    # O custo é serializar toda submissão de ordem real neste processo (e
+    # entre processos, via _file_lock) mesmo entre bets diferentes — aceitável
+    # aqui: isto é uma ação rara e deliberada por bet aprovado manualmente,
+    # nunca um caminho de alta frequência. reconcile_order/cancel_order
+    # continuam livres deste lock — não criam risco novo, só investigam ou
+    # reduzem o que já existe.
+    #
+    # Uma ordem presa em CREATED (client_factory ou qualquer coisa antes de
+    # SUBMITTED falhou numa tentativa anterior) é seguramente retomável: nós
+    # SABEMOS que nada foi transmitido ainda, então não é o mesmo caso de
+    # UNKNOWN (onde a rede pode ou não ter recebido a ordem). Só a partir de
+    # SUBMITTED em diante é que a ordem para de ser retomável por aqui.
+    orders_target = _orders_path(orders_path)
+    with _ORDERS_LOCK, _file_lock(orders_target):
+        existing = _existing_order_for_bet(bet["id"], orders_path=orders_path)
+        if existing is not None and existing["state"] != CREATED:
+            return existing
+        if existing is not None:
+            local_order_id = existing["local_order_id"]
+        else:
+            local_order_id = str(uuid.uuid4())
+            _audit(
+                _row(
+                    local_order_id,
+                    "order_created",
+                    CREATED,
+                    token_id=token_id,
+                    side=side,
+                    price=price,
+                    size=size,
+                    approval_id=approval["approval_id"],
+                ),
+                path=orders_path,
+            )
 
-    client = client_factory()
+        client = client_factory()
 
-    _audit(_row("order_submitted", SUBMITTED), path=orders_path)
+        _audit(_row(local_order_id, "order_submitted", SUBMITTED), path=orders_path)
 
-    try:
-        response = transmit(client, token_id=token_id, side=side, price=price, size=size)
-    except Exception as exc:
+        try:
+            response = transmit(client, token_id=token_id, side=side, price=price, size=size)
+        except Exception as exc:
+            _audit(
+                _row(
+                    local_order_id,
+                    "order_result",
+                    UNKNOWN,
+                    exchange_order_id=None,
+                    error=f"{type(exc).__name__}: {exc}",
+                ),
+                path=orders_path,
+            )
+            raise OrderStateUnknownError(
+                f"transmissão falhou sem confirmação (local_order_id={local_order_id}); "
+                "não sabemos se a exchange recebeu a ordem — reconcilie antes de tentar de novo"
+            ) from exc
+
+        state, exchange_order_id, size_matched = _interpret_post_order_response(response, size)
         _audit(
-            _row("order_result", UNKNOWN, exchange_order_id=None, error=f"{type(exc).__name__}: {exc}"),
+            _row(
+                local_order_id,
+                "order_result",
+                state,
+                exchange_order_id=exchange_order_id,
+                size_matched=size_matched,
+                clob_response=response,
+            ),
             path=orders_path,
         )
-        raise OrderStateUnknownError(
-            f"transmissão falhou sem confirmação (local_order_id={local_order_id}); "
-            "não sabemos se a exchange recebeu a ordem — reconcilie antes de tentar de novo"
-        ) from exc
-
-    state, exchange_order_id, size_matched = _interpret_post_order_response(response, size)
-    _audit(
-        _row(
-            "order_result",
-            state,
-            exchange_order_id=exchange_order_id,
-            size_matched=size_matched,
-            clob_response=response,
-        ),
-        path=orders_path,
-    )
-    final_view = order_view(local_order_id, orders_path=orders_path)
-    assert final_view is not None  # acabamos de gravar uma linha pra este id
-    return final_view
+        final_view = order_view(local_order_id, orders_path=orders_path)
+        assert final_view is not None  # acabamos de gravar uma linha pra este id
+        return final_view
 
 
 def reconcile_order(

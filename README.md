@@ -79,7 +79,10 @@ desempenho por patch.
 
 ```bash
 uv run lol-predictor predict T1 Gen.G --format bo3
-.venv\Scripts\python.exe -m src.predict T1 Gen.G --market kills --kills-line 26.5 --json
+# --kills-league é exigido sempre que data/calibration.json existir (Fase 1
+# concluída) — o país/liga de origem de um time não é assumido como o
+# contexto do torneio (Worlds/MSI têm ritmo de abates diferente).
+.venv\Scripts\python.exe -m src.predict T1 Gen.G --market kills --kills-line 26.5 --kills-league LCK --json
 .venv\Scripts\python.exe -m src.predict "Bilibili Gaming" "G2 Esports" --format bo5
 
 # Testes e CI

@@ -113,8 +113,14 @@ def check_critical_files() -> None:
         encoding="utf-8")
     SnapshotStore(fixture_root / "ingestion").publish(fixture_csv, source="ci-fixture")
     env["LOL_INGESTION_ROOT"] = str(fixture_root / "ingestion")
+    # --kills-league é exigido sempre que data/calibration.json existir
+    # localmente (gate deliberado — ver test_kills_uses_published_league_
+    # calibration em tests/test_model.py); em checkout limpo o arquivo nem
+    # existe e a flag é ignorada, então passá-la sempre é seguro nos dois
+    # estados.
     r = subprocess.run([sys.executable, "-X", "utf8", "-m", "src.predict",
-                        "T1", "Gen.G", "--format", "bo3", "--json"],
+                        "T1", "Gen.G", "--format", "bo3",
+                        "--kills-league", "LCK", "--json"],
                        cwd=ROOT, capture_output=True, text=True,
                        encoding="utf-8", errors="replace", env=env)
     if r.returncode != 0:
