@@ -1,5 +1,22 @@
 # HANDOFF.md — lol-predictor
 
+> ## 🔧 Migração para Core 2.3 e Ops 3.1 (2026-08-17)
+>
+> Commit `eb7a06b5ce6c8fdc9dd3a76df766e5d7471a1779` ("Migrate to Core 2.3 and
+> Ops 3.1") elevou os pisos de versão em `pyproject.toml`/`uv.lock` para
+> `predictor-core>=2.3,<3` e `predictor-ops>=3.1,<4` (wheels de
+> `v2.3.0`/`v3.1.0`, GitHub Releases de core-predictor/predictor-ops), com
+> `.github/workflows/ci.yml`, `Dockerfile`, `README.md` e
+> `tests/test_external_packages.py` atualizados no mesmo commit. Nenhuma
+> mudança de critério científico, gate ou estado shadow/capital.
+>
+> **Achado de auditoria independente pós-merge**: `docs/MIGRATION_2_0.md`
+> não foi atualizado por esse commit e ficou com os pisos antigos
+> (`predictor_core>=2.2,<3`/`predictor_ops>=3,<4`) e o nome de repositório
+> pré-rename `tools-predictor` em vez de `predictor-ops`. Corrigido nesta
+> sessão como fix de currency de documentação, sem tocar em código, lock,
+> CI ou estado.
+
 > ## 🧾 Sessão registrada (2026-08-14/15): execução real inerte construída, pipeline local recuperado, uma sessão paralela detectada
 >
 > Relato completo, passo a passo, com todos os comandos e saídas:
