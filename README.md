@@ -115,7 +115,7 @@ tests/                      # suíte estrita: modelo, serving, lifecycle, refres
 ```
 
 `predictor-core`/`predictor-ops` não são vendorizados: são wheels externas resolvidas
-via `[tool.uv.sources]` a partir das GitHub Releases de core-predictor/tools-predictor,
+via `[tool.uv.sources]` a partir das GitHub Releases de core-predictor/predictor-ops,
 com hash fixado em `uv.lock`.
 
 ## Roadmap

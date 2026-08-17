@@ -6,8 +6,8 @@ import predictor_ops
 
 
 def test_shared_dependencies_are_external_wheels():
-    assert version("predictor-core") == "2.2.0"
-    assert version("predictor-ops") == "3.0.0"
+    assert version("predictor-core") == "2.3.0"
+    assert version("predictor-ops") == "3.1.0"
     assert "site-packages" in str(Path(predictor_core.__file__).resolve())
     assert "site-packages" in str(Path(predictor_ops.__file__).resolve())
 

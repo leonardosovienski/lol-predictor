@@ -102,8 +102,10 @@ class PandaScoreProvider:
                     "published_player_count": len(players),
                 }
             )
-        games = payload.get("games") if isinstance(payload.get("games"), list) else []
-        videogame = payload.get("videogame") if isinstance(payload.get("videogame"), dict) else {}
+        raw_games = payload.get("games")
+        games: list[Any] = raw_games if isinstance(raw_games, list) else []
+        raw_videogame = payload.get("videogame")
+        videogame: dict[str, Any] = raw_videogame if isinstance(raw_videogame, dict) else {}
         draft_fields = ("draft", "draft_actions", "picks", "bans")
         games_with_draft = sum(
             any(isinstance(game, dict) and game.get(field) not in (None, [], {}) for field in draft_fields)

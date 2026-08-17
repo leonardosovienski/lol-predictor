@@ -54,12 +54,31 @@ def normalize_observation(raw: dict[str, Any]) -> dict[str, Any]:
     CLOSING is the last eligible quote before the declared market cutoff.
     """
     required = (
-        "canonical_event_id", "source_event_id", "competition_id", "competition_name",
-        "market", "market_id", "condition_id", "selection", "decision_point",
-        "observed_at", "published_at", "scheduled_at", "market_cutoff_at",
-        "team_a_id", "team_b_id", "roster_a", "roster_b", "patch",
-        "best_bid", "best_ask", "best_bid_size", "best_ask_size",
-        "model_probability", "settlement_policy", "source",
+        "canonical_event_id",
+        "source_event_id",
+        "competition_id",
+        "competition_name",
+        "market",
+        "market_id",
+        "condition_id",
+        "selection",
+        "decision_point",
+        "observed_at",
+        "published_at",
+        "scheduled_at",
+        "market_cutoff_at",
+        "team_a_id",
+        "team_b_id",
+        "roster_a",
+        "roster_b",
+        "patch",
+        "best_bid",
+        "best_ask",
+        "best_bid_size",
+        "best_ask_size",
+        "model_probability",
+        "settlement_policy",
+        "source",
     )
     missing = [field for field in required if raw.get(field) in (None, "", [], {})]
     if missing:

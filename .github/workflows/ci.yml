@@ -30,8 +30,8 @@ jobs:
         run: |
           uv venv /tmp/lol-wheel --python ${{ matrix.python }} --seed
           /tmp/lol-wheel/bin/pip install dist/*.whl \
-            "predictor-core @ https://github.com/leonardosovienski/core-predictor/releases/download/v2.2.0/predictor_core-2.2.0-py3-none-any.whl" \
-            "predictor-ops @ https://github.com/leonardosovienski/tools-predictor/releases/download/v3.0.0/predictor_ops-3.0.0-py3-none-any.whl"
+            "predictor-core @ https://github.com/leonardosovienski/core-predictor/releases/download/v2.3.0/predictor_core-2.3.0-py3-none-any.whl" \
+            "predictor-ops @ https://github.com/leonardosovienski/predictor-ops/releases/download/v3.1.0/predictor_ops-3.1.0-py3-none-any.whl"
           cd /tmp
           /tmp/lol-wheel/bin/lol-predictor validate-env "$OLDPWD/.env.example"
           /tmp/lol-wheel/bin/lol-scheduler validate "$OLDPWD/jobs.json"
