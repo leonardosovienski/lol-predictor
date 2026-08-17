@@ -1,9 +1,9 @@
 # Migração 2.0
 
 O runtime homologado é Python 3.13 com `uv`; 3.14 permanece experimental. `pyproject.toml`
-e `uv.lock` são as fontes oficiais. `predictor_core>=2.2,<3` e
-`predictor_ops>=3,<4` entram exclusivamente como wheels externas, publicadas como
-GitHub Releases de core-predictor/tools-predictor, com hash fixado pelo lock
+e `uv.lock` são as fontes oficiais. `predictor_core>=2.3,<3` e
+`predictor_ops>=3.1,<4` entram exclusivamente como wheels externas, publicadas como
+GitHub Releases de core-predictor/predictor-ops, com hash fixado pelo lock
 (`[tool.uv.sources]`) — não há wheelhouse vendorizado no repositório.
 
 ## Arquitetura
