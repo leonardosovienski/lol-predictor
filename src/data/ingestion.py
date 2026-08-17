@@ -221,6 +221,8 @@ class SnapshotStore:
             if str(summary["temporal_range_end"]) < previous_end:
                 raise IngestionError("regressão temporal: candidato termina antes do snapshot vigente")
         digest = _sha256(source_file)
+        if previous and previous.get("sha256") == digest:
+            raise IngestionError("snapshot imutável já existe para este conteúdo")
         now = _utc_now()
         snapshot_id = f"{now.strftime('%Y%m%dT%H%M%SZ')}-{digest[:12]}"
         target = self.snapshots / snapshot_id

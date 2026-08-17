@@ -3,6 +3,7 @@ import json
 import sys
 from pathlib import Path
 
+from .draft_coverage import publish_audit
 from .operations import (
     ContractError,
     OperationalError,
@@ -45,6 +46,9 @@ def main(argv: list[str] | None = None) -> int:
     shadow.add_argument("--output", type=Path)
     holdout = sub.add_parser("collect-holdout")
     holdout.add_argument("--horizon-hours", type=int, default=168)
+    coverage = sub.add_parser("audit-draft-coverage")
+    coverage.add_argument("--horizon-hours", type=int, default=168)
+    coverage.add_argument("--output", type=Path)
     health_parser = sub.add_parser("health")
     health_parser.add_argument("--connectivity", action="store_true", default=None)
     check = sub.add_parser("validate-env")
@@ -68,6 +72,14 @@ def main(argv: list[str] | None = None) -> int:
             output = collect_shadow(plugin.settings, args.horizon_hours, args.output)
         elif args.command == "collect-holdout":
             output = collect_holdout(plugin.settings, args.horizon_hours)
+        elif args.command == "audit-draft-coverage":
+            target = args.output or plugin.settings.data_root / "reports" / "draft_coverage_latest.json"
+            output = publish_audit(
+                target,
+                horizon_hours=args.horizon_hours,
+                aliases_path=plugin.settings.data_root / "polymarket_aliases.json",
+                registry_path=plugin.settings.data_root / "canonical_teams.json",
+            )
         elif args.command == "health":
             output = health(plugin.settings, connectivity=args.connectivity)
         else:

@@ -68,12 +68,17 @@ def check_critical_files() -> None:
         failures.append(f"teams_lol.json ilegivel: {e}")
 
     try:
-        ratings = json.loads((ROOT / "data" / "ratings.json").read_text(encoding="utf-8"))
+        # ratings.json é runtime deliberadamente gitignored. Checkout limpo
+        # valida o snapshot versionado em vez de exigir/fabricar estado local.
+        ratings_path = ROOT / "data" / "ratings.json"
+        if not ratings_path.exists():
+            ratings_path = ROOT / "data" / "snapshots" / "ewc_2026_pre_event_ratings.json"
+        ratings = json.loads(ratings_path.read_text(encoding="utf-8"))
         folded = [name.casefold() for name in ratings]
         if len(folded) != len(set(folded)):
-            failures.append("ratings.json tem identidades duplicadas por capitalizacao")
+            failures.append(f"{ratings_path.name} tem identidades duplicadas por capitalizacao")
     except Exception as e:
-        failures.append(f"ratings.json ilegivel: {e}")
+        failures.append(f"artefato de ratings ilegivel: {e}")
 
     try:
         ledger_path = ROOT / "data" / "predictions.jsonl"

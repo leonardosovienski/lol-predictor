@@ -76,6 +76,54 @@ class PandaScoreProvider:
             )
         return sorted(rows, key=lambda row: (row["scheduled_at"], row["source_event_id"]))
 
+    def fetch_match_context(self, source_event_id: str, *, observed_at: datetime | None = None) -> dict[str, Any]:
+        """Audit optional fields without claiming that they are official or complete."""
+        observed = observed_at or datetime.now(UTC)
+        if observed.tzinfo is None or observed.utcoffset() is None:
+            raise ValueError("observed_at deve conter timezone")
+        payload = self._get_json(f"{BASE}/lol/matches/{source_event_id}", self._headers())
+        if not isinstance(payload, dict):
+            raise DataUnavailableError("PandaScore retornou contexto de partida inválido")
+        rosters = []
+        for item in payload.get("opponents") or []:
+            team = item.get("opponent") if isinstance(item, dict) else None
+            if not isinstance(team, dict):
+                continue
+            players = [
+                {"source_player_id": str(player["id"]), "name": player.get("name"), "role": player.get("role")}
+                for player in team.get("players") or []
+                if isinstance(player, dict) and player.get("id") is not None
+            ]
+            rosters.append(
+                {
+                    "source_team_id": str(team.get("id")) if team.get("id") is not None else None,
+                    "team_name": team.get("name"),
+                    "players": players,
+                    "published_player_count": len(players),
+                }
+            )
+        games = payload.get("games") if isinstance(payload.get("games"), list) else []
+        videogame = payload.get("videogame") if isinstance(payload.get("videogame"), dict) else {}
+        draft_fields = ("draft", "draft_actions", "picks", "bans")
+        games_with_draft = sum(
+            any(isinstance(game, dict) and game.get(field) not in (None, [], {}) for field in draft_fields)
+            for game in games
+        )
+        return {
+            "source": "pandascore",
+            "source_event_id": str(source_event_id),
+            "observed_at": observed.astimezone(UTC).isoformat(),
+            "rosters": rosters,
+            "full_five_player_rosters": sum(row["published_player_count"] == 5 for row in rosters),
+            "substitutes_published": payload.get("substitutes") if isinstance(payload.get("substitutes"), list) else [],
+            "patch": videogame.get("version") or payload.get("patch"),
+            "games_published": len(games),
+            "games_with_draft_fields": games_with_draft,
+            "draft_fields_available": bool(games) and games_with_draft == len(games),
+            "draft_timeline_available": False,
+            "shadow_only": True,
+        }
+
     def iter_past(self, *, from_date: str, to_date: str, per_page: int = 100, max_pages: int | None = None):
         page = 1
         while max_pages is None or page <= max_pages:

@@ -29,9 +29,11 @@ def transport(url):
     token = parse_qs(parsed.query)["token_id"][0]
     if token == "token-a":
         return {"timestamp": "2026-07-20T12:00:00Z",
-                "bids": [{"price": "0.54"}], "asks": [{"price": "0.56"}]}
+                "bids": [{"price": "0.54", "size": "120"}],
+                "asks": [{"price": "0.56", "size": "80"}]}
     return {"timestamp": 1784548800000,
-            "bids": [{"price": "0.44"}], "asks": [{"price": "0.46"}]}
+            "bids": [{"price": "0.44", "size": "70"}],
+            "asks": [{"price": "0.46", "size": "90"}]}
 
 
 def test_quote_point_in_time_com_proveniencia():
@@ -44,6 +46,10 @@ def test_quote_point_in_time_com_proveniencia():
     assert quote["probability_a"] == .55
     assert quote["probability_b"] == .45
     assert quote["decimal_a"] == round(1 / .55, 6)
+    assert quote["best_ask_a"] == .56
+    assert quote["best_ask_size_a"] == 80
+    assert quote["ask_depth_a"] == 80
+    assert quote["executable_decimal_a"] == round(1 / .56, 6)
     assert quote["published_at"] <= quote["observed_at"] < quote["scheduled_at"]
 
 
